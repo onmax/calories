@@ -1,0 +1,5 @@
+**{{ totalCalories }} kcal**
+
+{{ items }}
+
+{{{ dashboardLink }}}

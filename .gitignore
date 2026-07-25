@@ -1,0 +1,16 @@
+.data
+.nuxt
+.output
+.patches
+.pnpm-store
+.pnpm_patches
+.vitehub
+.wrangler
+dist
+node_modules
+
+.env
+.env.*
+!.env.example
+
+*.log

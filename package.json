@@ -1,0 +1,53 @@
+{
+  "name": "vitehub-calories",
+  "type": "module",
+  "private": true,
+  "imports": {
+    "#vitehub/env/server": {
+      "types": "./.vitehub/env/server.d.ts",
+      "default": "./.vitehub/env/server.mjs"
+    },
+    "#vitehub/templates": "./.vitehub/markdown-template/templates.mjs"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs build && node scripts/stage-spa.mjs",
+    "deploy": "pnpm build && wrangler deploy --config .output/server/wrangler.json",
+    "db:generate": "node --env-file-if-exists=.env node_modules/vite-hub/dist/bin.js db generate",
+    "db:migrate": "mkdir -p .vitehub/data/database && node --env-file-if-exists=.env node_modules/vite-hub/dist/bin.js db migrate",
+    "db:migrate:remote": "pnpm build && node scripts/stage-d1-migrations.mjs && wrangler d1 migrations apply DB --remote --config .output/server/wrangler.json",
+    "dev": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs dev --host 127.0.0.1 --port 3000",
+    "postinstall": "vitehub types prepare && nuxt prepare",
+    "preview": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs preview",
+    "telegram:webhook": "node --env-file=.env scripts/set-telegram-webhook.mjs",
+    "typecheck": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs typecheck"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "4.0.28",
+    "@chat-adapter/telegram": "4.35.0",
+    "@nuxt/ui": "4.10.0",
+    "@vite-hub/database": "0.0.2",
+    "@vite-hub/source": "0.0.2",
+    "drizzle-orm": "0.45.2",
+    "h3": "2.0.1-rc.25",
+    "nuxt": "npm:nuxt-nightly@5.0.0-29746924.1554961a",
+    "ofetch": "2.0.0-alpha.3",
+    "tailwindcss": "4.3.3",
+    "vite-hub": "0.0.2",
+    "vue-router": "5.2.0",
+    "zod": "4.3.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260724.1",
+    "@iconify-json/lucide": "1.2.113",
+    "@types/node": "25.9.2",
+    "nitro": "3.0.260610-beta",
+    "typescript": "6.0.3",
+    "vite": "8.1.5",
+    "vue-tsc": "3.2.6",
+    "wrangler": "4.111.0"
+  }
+}

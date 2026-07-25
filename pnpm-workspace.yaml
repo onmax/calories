@@ -1,0 +1,6 @@
+patchedDependencies:
+  '@chat-adapter/telegram@4.35.0': patches/@chat-adapter__telegram@4.35.0.patch
+  '@vite-hub/agent@0.0.2': patches/@vite-hub__agent@0.0.2.patch
+  '@vite-hub/database@0.0.2': patches/@vite-hub__database@0.0.2.patch
+  '@vite-hub/source@0.0.2': patches/@vite-hub__source@0.0.2.patch
+  vite-hub@0.0.2: patches/vite-hub@0.0.2.patch
