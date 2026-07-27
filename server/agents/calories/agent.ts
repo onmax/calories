@@ -1,5 +1,6 @@
 import { createGateway } from "@ai-sdk/gateway"
 import { createTelegramAdapter } from "@chat-adapter/telegram"
+import { and, eq, gte } from "drizzle-orm"
 import { useStorage } from "nitro/storage"
 import { defineAgent } from "vite-hub/agent"
 import { telegram } from "vite-hub/agent/channels"
@@ -100,6 +101,30 @@ export default defineAgent({
         updatedAt: timestamp,
       })
 
+      const dayFormatter = new Intl.DateTimeFormat("en-CA", {
+        day: "2-digit",
+        month: "2-digit",
+        timeZone: useServerEnv().timeZone,
+        year: "numeric",
+      })
+      const today = dayFormatter.format(timestamp)
+      const readyMeals = await database.select({
+        createdAt: schema.meals.createdAt,
+        totalCalories: schema.meals.totalCalories,
+      })
+        .from(schema.meals)
+        .where(and(
+          eq(schema.meals.status, "ready"),
+          eq(schema.meals.telegramChatId, chatId),
+          gte(schema.meals.createdAt, new Date(timestamp.getTime() - 26 * 60 * 60 * 1000)),
+        ))
+      const todayCalories = readyMeals.reduce(
+        (total, meal) => dayFormatter.format(meal.createdAt) === today
+          ? total + (meal.totalCalories ?? 0)
+          : total,
+        0,
+      )
+
       if (!event.runtime.request) throw new Error("The Telegram request URL is unavailable.")
       const url = new URL("/", event.runtime.request.url)
       url.searchParams.set("meal", id)
@@ -113,6 +138,7 @@ export default defineAgent({
           items: analysis.items
             .map(item => `• ${item.name}, ${item.portion}: ${item.calories.toLocaleString("en-US")} kcal`)
             .join("\n"),
+          todayCalories: todayCalories.toLocaleString("en-US"),
           totalCalories: analysis.totalCalories.toLocaleString("en-US"),
         },
       }))
