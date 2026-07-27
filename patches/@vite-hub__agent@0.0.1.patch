@@ -1,16 +1,88 @@
 diff --git a/dist/routes-BhZC29Lp.js b/dist/routes-BhZC29Lp.js
-index 71817bef321cc58ff86db1c57c5327405f80248c..84b195e1e366006014b5bdbc879700df0c5fed07 100644
+index 71817bef321cc58ff86db1c57c5327405f80248c..822ec06676bb07942c43368bc9e0e3554b1c3d23 100644
 --- a/dist/routes-BhZC29Lp.js
 +++ b/dist/routes-BhZC29Lp.js
-@@ -1409,6 +1409,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+@@ -1342,6 +1342,22 @@ async function postChatMessage(thread, message) {
+ 		attachments: [...Array.isArray(postable.attachments) ? postable.attachments : [], ...attachments]
+ 	});
+ }
++async function replaceChatMessage(sent, message) {
++	if (!sent || typeof sent !== "object" || !("edit" in sent) || typeof sent.edit !== "function") return false;
++	if (isAsyncIterable(message)) {
++		let markdown = "";
++		for await (const chunk of message) markdown += chunk;
++		await sent.edit({ markdown });
++		return true;
++	}
++	if (typeof message !== "object" || message === null) {
++		await sent.edit(message);
++		return true;
++	}
++	if (deliveryArtifactAttachments(chatMessageDeliveryArtifacts(message)).length) return false;
++	await sent.edit(isTextChatMessage(message) ? message.text : message);
++	return true;
++}
+ async function resolveChatErrorFallbackText(options, args) {
+ 	const fallback = options?.errorFallbackText;
+ 	if (fallback === null) return void 0;
+@@ -1351,7 +1367,7 @@ async function resolveChatErrorFallbackText(options, args) {
+ 	if (publicError.code === "RATE_LIMIT_REJECTED") return publicError.error;
+ 	return defaultChatErrorFallbackText;
+ }
+-async function postChatErrorFallback(error, thread, message, options, input, run) {
++async function postChatErrorFallback(error, thread, message, options, input, run, replyTarget) {
+ 	console.error({
+ 		component: "@vite-hub/agent",
+ 		error: serializeErrorForLog(error),
+@@ -1360,7 +1376,12 @@ async function postChatErrorFallback(error, thread, message, options, input, run
+ 		thread_id: message.threadId
+ 	});
+ 	const fallback = await resolveChatErrorFallbackText(options, chatErrorHookArgs(thread, message, input, run, error));
+-	if (fallback) await thread.post(fallback).catch(() => void 0);
++	if (!fallback) return;
++	if (replyTarget) {
++		if (await replaceChatMessage(replyTarget, fallback).catch(() => false)) return;
++		await replyTarget.delete?.().catch(() => void 0);
++	}
++	await thread.post(fallback).catch(() => void 0);
+ }
+ function createChatFinishExtension(input, registration) {
+ 	const messages = [];
+@@ -1373,9 +1394,20 @@ function createChatFinishExtension(input, registration) {
+ 		}
+ 	};
+ }
+-async function flushChatFinishExtensionMessages(thread, chat) {
++async function flushChatFinishExtensionMessages(thread, chat, replyTarget) {
+ 	const messages = chat[chatFinishMessagesKey].splice(0);
+-	for (const message of messages) await postChatMessage(thread, message);
++	for (const message of messages) {
++		if (replyTarget) {
++			if (await replaceChatMessage(replyTarget, message).catch(() => false)) {
++				replyTarget = void 0;
++				continue;
++			}
++			await replyTarget.delete?.().catch(() => void 0);
++			replyTarget = void 0;
++		}
++		await postChatMessage(thread, message);
++	}
++	return replyTarget;
+ }
+ function withChatFinishExtension(input, chat) {
+ 	return {
+@@ -1407,8 +1439,10 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 	let input;
+ 	let run;
  	let typing;
++	let replyTarget;
  	try {
  		input = createChatTriggerInput(chatRegistrationOrigin(registration), thread, message, [chatAuthorizationUiMessage(thread, message, messageContext)], messageContext, registration.channelId);
 +		if (typeof options?.timeout === "number" && Number.isFinite(options.timeout) && options.timeout > 0) input.timeout = options.timeout;
  		const authorizationInput = createChatMessageTriggerInput(options || {}, input).input;
  		const invoker = await isChatMessageAuthorized(agent, context, registration, thread, message, authorizationInput, input.run, messageContext);
  		if (!invoker) return;
-@@ -1431,7 +1432,9 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+@@ -1431,7 +1465,11 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
  		};
  		const invocation = await resolveAgentTriggerInvocation(agent, context, "chat.message", input);
  		if (isResolvedAgentTriggerHandledInvocation(invocation)) return;
@@ -18,10 +90,12 @@ index 71817bef321cc58ff86db1c57c5327405f80248c..84b195e1e366006014b5bdbc879700df
 +		const manualDelivery = options?.delivery === "manual";
 +		if (manualDelivery && (options?.stream === true || options?.commentary !== void 0)) throw new TypeError("[vitehub] messages.delivery \"manual\" cannot be combined with streaming or commentary delivery.");
 +		const streamsPhasedReplies = !manualDelivery && (options?.stream !== false || options?.commentary !== void 0);
++		const thinkingFallback = invocation.metadata?.thinkingFallback;
++		if (manualDelivery && typeof thinkingFallback === "string") replyTarget = await thread.post(thinkingFallback);
  		typing = streamsPhasedReplies ? startChatTypingRefresh(thread, context) : void 0;
  		run = invocation.run;
  		const runContext = {
-@@ -1449,7 +1452,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+@@ -1449,13 +1487,14 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
  		}, invoker), chatFinish);
  		if (!streamsPhasedReplies) {
  			const text = await collectAgentOutput(await runAgentInline(agent, runContext, invocationInput));
@@ -29,7 +103,25 @@ index 71817bef321cc58ff86db1c57c5327405f80248c..84b195e1e366006014b5bdbc879700df
 +			if (!manualDelivery && text) {
  				if (!await postDiscordSplitContent(thread, { markdown: text })) await thread.post({ markdown: text });
  			}
- 			await flushChatFinishExtensionMessages(thread, chatFinish);
+-			await flushChatFinishExtensionMessages(thread, chatFinish);
++			replyTarget = await flushChatFinishExtensionMessages(thread, chatFinish, replyTarget);
++			await replyTarget?.delete?.().catch(() => void 0);
++			replyTarget = void 0;
+ 		} else {
+ 			const result = streamAgent(agent, runContext, invocationInput, { output: "events" });
+-			const thinkingFallback = invocation.metadata?.thinkingFallback;
+ 			try {
+ 				if (options?.stream === true || options?.commentary === void 0) await postChatStream(thread, streamAgentOutputToChatText(result), typeof thinkingFallback === "string" || thinkingFallback === null ? thinkingFallback : void 0, context.waitUntil);
+ 				else {
+@@ -1488,7 +1527,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 		}
+ 	} catch (error) {
+ 		typing?.stop();
+-		await postChatErrorFallback(error, thread, message, options, input, run);
++		await postChatErrorFallback(error, thread, message, options, input, run, replyTarget);
+ 		throw error;
+ 	} finally {
+ 		typing?.stop();
 diff --git a/dist/types-Dj4Xu2_S.d.ts b/dist/types-Dj4Xu2_S.d.ts
 index 0bfc07ca2cc6771d6230ea3be02fcd723e2fcf8b..8e4a9e83a63ead42cdb7672a44cd2cbcc8c2fe4a 100644
 --- a/dist/types-Dj4Xu2_S.d.ts

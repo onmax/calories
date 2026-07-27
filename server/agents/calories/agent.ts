@@ -29,11 +29,8 @@ export default defineAgent({
         concurrency: "parallel",
         delivery: "manual",
         errorFallbackText: "I couldn’t analyze that photo. Please send it again.",
-        filter: async ({ message, thread }) => {
-          const hasImage = message.parts.some(part => part.type === "image")
-          if (hasImage) await thread.post("Analyzing photo…")
-          return hasImage
-        },
+        fallbackStreamingPlaceholderText: "Analyzing photo…",
+        filter: ({ message }) => message.parts.some(part => part.type === "image"),
         threadHistory: { maxMessages: 5 },
         timeout: 25_000,
       },
@@ -157,7 +154,7 @@ export default defineAgent({
           dashboardLink: `[Open dashboard](${url})`,
           items: analyses
             .flatMap(analysis => analysis.items)
-            .map(item => `• ${item.name}, ${item.portion}: ${item.calories.toLocaleString("en-US")} kcal`)
+            .map(item => `- ${item.name}, ${item.portion}: ${item.calories.toLocaleString("en-US")} kcal`)
             .join("\n"),
           todayCalories: todayCalories.toLocaleString("en-US"),
           totalCalories: analyses
