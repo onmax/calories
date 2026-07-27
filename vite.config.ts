@@ -20,10 +20,6 @@ export const viteHubOptions = {
 export const viteConfig = {
   env: {
     server: {
-      timeZone: env({
-        default: "Asia/Bangkok",
-        source: env.source("CALORIES_TIME_ZONE"),
-      }),
       telegram: {
         allowedUserId: env({
           source: env.source("TELEGRAM_ALLOWED_USER_ID"),

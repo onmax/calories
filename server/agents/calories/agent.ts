@@ -101,27 +101,19 @@ export default defineAgent({
         updatedAt: timestamp,
       })
 
-      const dayFormatter = new Intl.DateTimeFormat("en-CA", {
-        day: "2-digit",
-        month: "2-digit",
-        timeZone: useServerEnv().timeZone,
-        year: "numeric",
-      })
-      const today = dayFormatter.format(timestamp)
+      const startOfTodayUtc = new Date(timestamp)
+      startOfTodayUtc.setUTCHours(0, 0, 0, 0)
       const readyMeals = await database.select({
-        createdAt: schema.meals.createdAt,
         totalCalories: schema.meals.totalCalories,
       })
         .from(schema.meals)
         .where(and(
           eq(schema.meals.status, "ready"),
           eq(schema.meals.telegramChatId, chatId),
-          gte(schema.meals.createdAt, new Date(timestamp.getTime() - 26 * 60 * 60 * 1000)),
+          gte(schema.meals.createdAt, startOfTodayUtc),
         ))
       const todayCalories = readyMeals.reduce(
-        (total, meal) => dayFormatter.format(meal.createdAt) === today
-          ? total + (meal.totalCalories ?? 0)
-          : total,
+        (total, meal) => total + (meal.totalCalories ?? 0),
         0,
       )
 
