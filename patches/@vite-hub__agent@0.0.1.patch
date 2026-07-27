@@ -1,0 +1,52 @@
+diff --git a/dist/routes-BhZC29Lp.js b/dist/routes-BhZC29Lp.js
+index 71817bef321cc58ff86db1c57c5327405f80248c..84b195e1e366006014b5bdbc879700df0c5fed07 100644
+--- a/dist/routes-BhZC29Lp.js
++++ b/dist/routes-BhZC29Lp.js
+@@ -1409,6 +1409,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 	let typing;
+ 	try {
+ 		input = createChatTriggerInput(chatRegistrationOrigin(registration), thread, message, [chatAuthorizationUiMessage(thread, message, messageContext)], messageContext, registration.channelId);
++		if (typeof options?.timeout === "number" && Number.isFinite(options.timeout) && options.timeout > 0) input.timeout = options.timeout;
+ 		const authorizationInput = createChatMessageTriggerInput(options || {}, input).input;
+ 		const invoker = await isChatMessageAuthorized(agent, context, registration, thread, message, authorizationInput, input.run, messageContext);
+ 		if (!invoker) return;
+@@ -1431,7 +1432,9 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 		};
+ 		const invocation = await resolveAgentTriggerInvocation(agent, context, "chat.message", input);
+ 		if (isResolvedAgentTriggerHandledInvocation(invocation)) return;
+-		const streamsPhasedReplies = options?.stream !== false || options?.commentary !== void 0;
++		const manualDelivery = options?.delivery === "manual";
++		if (manualDelivery && (options?.stream === true || options?.commentary !== void 0)) throw new TypeError("[vitehub] messages.delivery \"manual\" cannot be combined with streaming or commentary delivery.");
++		const streamsPhasedReplies = !manualDelivery && (options?.stream !== false || options?.commentary !== void 0);
+ 		typing = streamsPhasedReplies ? startChatTypingRefresh(thread, context) : void 0;
+ 		run = invocation.run;
+ 		const runContext = {
+@@ -1449,7 +1452,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 		}, invoker), chatFinish);
+ 		if (!streamsPhasedReplies) {
+ 			const text = await collectAgentOutput(await runAgentInline(agent, runContext, invocationInput));
+-			if (text) {
++			if (!manualDelivery && text) {
+ 				if (!await postDiscordSplitContent(thread, { markdown: text })) await thread.post({ markdown: text });
+ 			}
+ 			await flushChatFinishExtensionMessages(thread, chatFinish);
+diff --git a/dist/types-Dj4Xu2_S.d.ts b/dist/types-Dj4Xu2_S.d.ts
+index 0bfc07ca2cc6771d6230ea3be02fcd723e2fcf8b..8e4a9e83a63ead42cdb7672a44cd2cbcc8c2fe4a 100644
+--- a/dist/types-Dj4Xu2_S.d.ts
++++ b/dist/types-Dj4Xu2_S.d.ts
+@@ -1205,6 +1205,7 @@ interface AgentMessageChannelSettings<TRuntimeConfig extends AgentRuntimeConfig
+   commentary?: "hidden" | "message";
+   concurrency?: AgentMessageConcurrency;
+   dedupeTtlMs?: number;
++  delivery?: "automatic" | "manual";
+   errorFallbackText?: string | null | ((context: AgentChatErrorHookArgs<TRuntimeConfig>) => MaybePromise<string | null | undefined>);
+   fallbackStreamingPlaceholderText?: string | readonly string[] | null | ((context: AgentChatAgentHookArgs<TRuntimeConfig>) => MaybePromise<string | null | undefined>);
+   filter?: AgentMessageFilter<TRuntimeConfig>;
+@@ -1216,6 +1217,7 @@ interface AgentMessageChannelSettings<TRuntimeConfig extends AgentRuntimeConfig
+   stream?: boolean;
+   streamingUpdateIntervalMs?: number;
+   threadHistory?: unknown;
++  timeout?: number;
+   transcripts?: TranscriptsConfig;
+   triggerHistory?: AgentChatTriggerHistory;
+   userName?: string;
