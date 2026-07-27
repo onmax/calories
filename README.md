@@ -47,7 +47,7 @@ server/
   utils/meal-analysis.ts          structured output schema
 vite.config.ts                    ViteHub plugin and environment
 nuxt.config.ts                    Nuxt UI, ViteHub modules, Nitro v3
-patches/                          narrow upstream compatibility patches
+patches/                          Telegram JPEG MIME compatibility patch
 scripts/
   set-telegram-webhook.mjs        webhook registration
   stage-d1-migrations.mjs         migration handoff to Wrangler
@@ -78,13 +78,10 @@ pnpm telegram:webhook
 
 `APP_URL`, `TELEGRAM_ALLOWED_USER_ID`, and `TELEGRAM_WEBHOOK_SECRET` must be present when registering the webhook. Telegram requires the user to start the bot once before the bot can learn the numeric ID or send a message back.
 
-## Compatibility patches
+## Compatibility patch
 
-The repository uses pnpm patches for gaps at the Nuxt nightly/Nitro v3 boundary:
+The repository keeps one narrow pnpm patch:
 
-- `@chat-adapter/telegram` filters `allowedUserIds` before any chat or AI work.
-- `vite-hub` exposes and installs its Nuxt bridge while avoiding duplicate deployment output.
-- `@vite-hub/agent` backports driver-owned structured output and pre-invocation message filters alongside the existing Worker fixes.
-- `@vite-hub/database` makes the Cloudflare D1 binding merge idempotent.
+- `@chat-adapter/telegram` supplies `image/jpeg` metadata for Telegram photos.
 
-These patches stay deliberately narrow so each can be removed when the corresponding capability ships upstream.
+The patch can be removed when that metadata ships upstream.
