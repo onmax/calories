@@ -28,8 +28,8 @@ export default defineAgent({
         concurrency: "parallel",
         errorFallbackText: "I couldn’t analyze that photo. Please send it again.",
         fallbackStreamingPlaceholderText: "Photo saved. Analyzing…",
+        final: "hidden",
         filter: ({ message }) => message.parts.length === 1 && message.parts[0]?.type === "image",
-        stream: true,
       },
       webhooks: {
         id: "telegram",
@@ -110,9 +110,6 @@ export default defineAgent({
       return event.reply(await renderMarkdownTemplate(reply, {
         data: {
           dashboardLink: `[Open dashboard](${url})`,
-          items: analysis.items
-            .map(item => `• ${item.name}, ${item.portion}: ${item.calories.toLocaleString("en-US")} kcal`)
-            .join("\n"),
           totalCalories: analysis.totalCalories.toLocaleString("en-US"),
         },
       }))
