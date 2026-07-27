@@ -110,6 +110,9 @@ export default defineAgent({
       return event.reply(await renderMarkdownTemplate(reply, {
         data: {
           dashboardLink: `[Open dashboard](${url})`,
+          items: analysis.items
+            .map(item => `• ${item.name}, ${item.portion}: ${item.calories.toLocaleString("en-US")} kcal`)
+            .join("\n"),
           totalCalories: analysis.totalCalories.toLocaleString("en-US"),
         },
       }))
