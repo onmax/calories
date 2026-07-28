@@ -1,6 +1,6 @@
 import { defineDatabase } from "vite-hub/database"
 import { sql } from "drizzle-orm"
-import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core"
 
 const now = sql`(cast(unixepoch('subsecond') * 1000 as integer))`
 
@@ -9,6 +9,7 @@ export const meals = sqliteTable("meals", {
   telegramChatId: text("telegram_chat_id").notNull(),
   telegramMessageId: integer("telegram_message_id").notNull(),
   telegramPhotoFileId: text("telegram_photo_file_id"),
+  telegramPhotoUniqueId: text("telegram_photo_unique_id"),
   caption: text("caption"),
   photoPath: text("photo_path").notNull(),
   photoContentType: text("photo_content_type"),
@@ -29,6 +30,7 @@ export const meals = sqliteTable("meals", {
 }, table => [
   index("meals_created_idx").on(table.createdAt),
   index("meals_status_idx").on(table.status),
+  uniqueIndex("meals_telegram_photo_unique_idx").on(table.telegramChatId, table.telegramPhotoUniqueId),
 ])
 
 export default defineDatabase({

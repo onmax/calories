@@ -1,0 +1,51 @@
+diff --git a/dist/src-a0ly0gYF.js b/dist/src-a0ly0gYF.js
+index e14a8e3d863fa8963e415c42ebd9433cc21fba3f..d4edbd27828ef7e4f53f5ae6efe535c99988eabc 100644
+--- a/dist/src-a0ly0gYF.js
++++ b/dist/src-a0ly0gYF.js
+@@ -902,7 +902,8 @@ function deploymentPlugins(plan, requestedServices, blobEnabled, services, optio
+ 				throw new Error("[vitehub] Blob is disabled but the application imports " + JSON.stringify(source) + ".");
+ 			}
+ 		},
+-		config(config) {
++		config(config, environment) {
++			const development = environment?.command === "serve";
+ 			for (const service of requestedServices) assertDeploymentService(plan, service);
+ 			const identity = resolveDeploymentIdentity(typeof config.root === "string" ? config.root : void 0, options.name);
+ 			const name = identity.name;
+@@ -938,15 +939,15 @@ function deploymentPlugins(plan, requestedServices, blobEnabled, services, optio
+ 				nitro.cloudflare = cloudflare;
+ 			}
+ 			const configuredPreset = typeof nitro.preset === "string" ? nitro.preset : void 0;
+-			if (configuredPreset && normalizeNitroPreset(configuredPreset) !== plan.nitroPreset) throw new Error("[vitehub] vitehub preset " + JSON.stringify(plan.preset) + " conflicts with nitro.preset " + JSON.stringify(configuredPreset) + ".");
++			if (!development && configuredPreset && normalizeNitroPreset(configuredPreset) !== plan.nitroPreset) throw new Error("[vitehub] vitehub preset " + JSON.stringify(plan.preset) + " conflicts with nitro.preset " + JSON.stringify(configuredPreset) + ".");
+ 			for (const name of ["NITRO_PRESET", "SERVER_PRESET"]) {
+ 				const value = process.env[name];
+-				if (value && normalizeNitroPreset(value) !== plan.nitroPreset) throw new Error("[vitehub] vitehub preset " + JSON.stringify(plan.preset) + " conflicts with " + name + "=" + JSON.stringify(value) + ".");
++				if (!development && value && normalizeNitroPreset(value) !== plan.nitroPreset) throw new Error("[vitehub] vitehub preset " + JSON.stringify(plan.preset) + " conflicts with " + name + "=" + JSON.stringify(value) + ".");
+ 			}
+ 			const configuredHosting = process.env.VITEHUB_HOSTING;
+ 			if (configuredHosting && deploymentPresetFromNitro(configuredHosting) !== plan.preset) throw new Error("[vitehub] vitehub preset " + JSON.stringify(plan.preset) + " conflicts with VITEHUB_HOSTING=" + JSON.stringify(configuredHosting) + ".");
+-			nitro.modules = [...Array.isArray(nitro.modules) ? nitro.modules : [], deploymentNitroModule(plan, services, identity)];
+-			if (plan.output.packaging === "deno-node-modules") {
++			if (!development) nitro.modules = [...Array.isArray(nitro.modules) ? nitro.modules : [], deploymentNitroModule(plan, services, identity)];
++			if (!development && plan.output.packaging === "deno-node-modules") {
+ 				nitro.commands = {
+ 					...cloneRecord(nitro.commands),
+ 					deploy: "node ./deploy.mjs"
+@@ -966,14 +967,14 @@ function deploymentPlugins(plan, requestedServices, blobEnabled, services, optio
+ 			}
+ 			config.nitro = {
+ 				...nitro,
+-				preset: plan.nitroPreset
++				preset: development ? configuredPreset : plan.nitroPreset
+ 			};
+ 		}
+ 	}, {
+ 		name: "vite-hub/deployment-output",
+ 		enforce: "post",
+ 		configResolved(config) {
+-			if (cloneRecord(config.nitro).preset !== plan.nitroPreset) throw new Error("[vitehub] The " + JSON.stringify(plan.preset) + " deployment plan requires Nitro preset " + JSON.stringify(plan.nitroPreset) + ".");
++			if (config.command !== "serve" && cloneRecord(config.nitro).preset !== plan.nitroPreset) throw new Error("[vitehub] The " + JSON.stringify(plan.preset) + " deployment plan requires Nitro preset " + JSON.stringify(plan.nitroPreset) + ".");
+ 		}
+ 	}];
+ }

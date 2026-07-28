@@ -9,7 +9,7 @@ const emit = defineEmits<{ select: [id: string] }>()
 <template>
   <section class="history-section" aria-labelledby="history-heading">
     <div class="history-heading">
-      <div><p class="section-label">Photo roll</p><h2 id="history-heading">Recent meals</h2></div>
+      <h2 id="history-heading">Recent meals</h2>
       <span>{{ meals.length }} captured</span>
     </div>
 

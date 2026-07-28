@@ -10,7 +10,7 @@ Production: <https://vitehub-calories.maximogarciamtnez.workers.dev>
 - Nitro v3 emits the Cloudflare Worker and serves both the UI and API.
 - ViteHub Agent filters Telegram input, validates structured image analysis, and streams the saved result through Chat SDK.
 - ViteHub Blob stores original photos privately in Cloudflare R2.
-- ViteHub Database uses SQLite locally and Cloudflare D1 in production.
+- ViteHub Database uses the remote Cloudflare D1 binding during local development and production.
 - Vercel AI SDK sends images to Vercel AI Gateway using `VERCEL_AI_GATEWAY_TOKEN`.
 
 ## Input lifecycle
@@ -47,7 +47,7 @@ server/
   utils/meal-analysis.ts          structured output schema
 vite.config.ts                    ViteHub plugin and environment
 nuxt.config.ts                    Nuxt UI, ViteHub modules, Nitro v3
-patches/                          Telegram JPEG MIME compatibility patch
+patches/                          package compatibility patches
 scripts/
   set-telegram-webhook.mjs        webhook registration
   stage-d1-migrations.mjs         migration handoff to Wrangler
@@ -60,11 +60,10 @@ scripts/
 cp .env.example .env
 pnpm install
 pnpm db:generate
-pnpm db:migrate
 pnpm dev
 ```
 
-The `.env` file needs the existing Gateway and Telegram tokens. `TELEGRAM_ALLOWED_USER_ID` is the numeric `message.from.id`, not a username or chat handle.
+The `.env` file needs a scoped Cloudflare D1 token plus the existing Gateway and Telegram tokens. `TELEGRAM_ALLOWED_USER_ID` is the numeric `message.from.id`, not a username or chat handle. Local database writes affect the remote D1 database.
 
 ## Cloudflare deployment
 
@@ -78,10 +77,13 @@ pnpm telegram:webhook
 
 `APP_URL`, `TELEGRAM_ALLOWED_USER_ID`, and `TELEGRAM_WEBHOOK_SECRET` must be present when registering the webhook. Telegram requires the user to start the bot once before the bot can learn the numeric ID or send a message back.
 
-## Compatibility patch
+## Compatibility patches
 
-The repository keeps one narrow pnpm patch:
+The repository keeps four narrow pnpm patches:
 
 - `@chat-adapter/telegram` supplies `image/jpeg` metadata for Telegram photos.
+- `@vite-hub/agent` keeps manual reply delivery and generated state types working.
+- `@vite-hub/database` routes Vite development to the Cloudflare D1 HTTP API.
+- `vite-hub` keeps deployment-only Nitro configuration out of the Vite development server.
 
-The patch can be removed when that metadata ships upstream.
+Each patch can be removed when its behavior ships upstream.

@@ -2,13 +2,26 @@ diff --git a/dist/index.js b/dist/index.js
 index c4327f7..1874743 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -2006,7 +2006,8 @@ var TelegramAdapter = class {
+@@ -2006,7 +2006,9 @@ var TelegramAdapter = class {
          this.createAttachment("image", photo.file_id, {
            size: photo.file_size,
            width: photo.width,
 -          height: photo.height
 +          height: photo.height,
++          fileUniqueId: photo.file_unique_id,
 +          mimeType: "image/jpeg"
          })
        );
      }
+@@ -2082,7 +2084,10 @@ var TelegramAdapter = class {
+       height: metadata?.height,
+       name: metadata?.name,
+       mimeType: metadata?.mimeType,
+-      fetchMetadata: { fileId },
++      fetchMetadata: {
++        fileId,
++        ...(metadata?.fileUniqueId ? { fileUniqueId: metadata.fileUniqueId } : {})
++      },
+       fetchData: async () => this.downloadFile(fileId)
+     };
+   }

@@ -11,7 +11,10 @@ defineProps<{ meal?: Meal }>()
       <template v-if="meal">
         <header class="analysis-heading">
           <div><p class="panel-kicker"><UIcon name="i-lucide-scan-eye" /> AI estimate</p><h2>Inside this plate</h2></div>
-          <span v-if="meal.confidence" class="confidence-badge" :data-confidence="meal.confidence">{{ meal.confidence }} confidence</span>
+          <span v-if="meal.confidence" class="confidence-indicator" :data-confidence="meal.confidence">
+            <span class="confidence-bars" aria-hidden="true"><i /><i /><i /></span>
+            <span>{{ meal.confidence }} confidence</span>
+          </span>
         </header>
 
         <p v-if="meal.caption" class="meal-caption">“{{ meal.caption }}”</p>
@@ -22,13 +25,8 @@ defineProps<{ meal?: Meal }>()
             <div><strong class="tabular-nums">{{ meal.totalCalories?.toLocaleString() }}</strong><span>kilocalories</span></div>
           </section>
 
-          <section class="analysis-cost">
-            <div class="panel-section-heading"><h3>Analysis cost</h3></div>
-            <dl class="cost-breakdown"><div class="cost-total"><dt>Gateway total</dt><dd><strong class="tabular-nums">{{ formatUsd(meal.costUsd) }}</strong></dd></div></dl>
-          </section>
-
           <section class="breakdown-section">
-            <div class="panel-section-heading"><h3>Food breakdown</h3><span>{{ meal.items.length }} detected</span></div>
+            <div class="panel-section-heading"><h3>Detected items</h3><span>{{ meal.items.length }} total</span></div>
             <div class="food-list">
               <article v-for="item in meal.items" :key="`${item.name}-${item.portion}`" class="food-row">
                 <div class="food-row-heading"><div><h4>{{ item.name }}</h4><p>{{ item.portion }}</p></div><strong class="tabular-nums">{{ item.calories }} <span>kcal</span></strong></div>
@@ -38,8 +36,13 @@ defineProps<{ meal?: Meal }>()
           </section>
 
           <section v-if="meal.assumptions.length" class="assumption-box">
-            <div class="panel-section-heading"><h3>What the model assumed</h3><UIcon name="i-lucide-info" /></div>
+            <div class="panel-section-heading"><h3>Notes and assumptions</h3><UIcon name="i-lucide-info" /></div>
             <ul role="list"><li v-for="assumption in meal.assumptions" :key="assumption">{{ assumption }}</li></ul>
+          </section>
+
+          <section class="analysis-cost">
+            <div class="panel-section-heading"><h3>Analysis cost</h3></div>
+            <dl class="cost-breakdown"><div class="cost-total"><dt>Gateway total</dt><dd><strong class="tabular-nums">{{ formatUsd(meal.costUsd) }}</strong></dd></div></dl>
           </section>
         </template>
 
@@ -52,17 +55,12 @@ defineProps<{ meal?: Meal }>()
           <UIcon name="i-lucide-loader-circle" class="spinning" />
           <div><h3>Reading the plate</h3><p>This view refreshes automatically while the estimate is in progress.</p></div>
         </section>
-
-        <footer class="estimate-note">
-          <UIcon name="i-lucide-aperture" />
-          <p>A photo can’t reveal exact weight, oil, sugar, or hidden ingredients. Treat each number as an editable estimate, not a measurement.</p>
-        </footer>
       </template>
 
       <div v-else class="analysis-empty">
         <span><UIcon name="i-lucide-image" /></span>
         <h2>No meal selected</h2>
-        <p>Select a photo to see the model’s calorie estimate, food breakdown, and assumptions.</p>
+        <p>Select a photo to see every detected item, its calorie estimate, and the model’s assumptions.</p>
       </div>
     </div>
   </aside>

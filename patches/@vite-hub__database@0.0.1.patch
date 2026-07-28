@@ -1,0 +1,86 @@
+diff --git a/dist/definition-config-DkdJxJeF.js b/dist/definition-config-DkdJxJeF.js
+index c450e5771f234d547d688818df2750f0d1d013a1..f02ae10d6e6d054c35e8e48b55d95b64fb1844be 100644
+--- a/dist/definition-config-DkdJxJeF.js
++++ b/dist/definition-config-DkdJxJeF.js
+@@ -9,7 +9,12 @@ function defaultUrl(name) {
+ 	return `file:.vitehub/data/database/${name}.sqlite.db`;
+ }
+ function runtimeConfig(definition) {
+-	const cloudflare = definition.cloudflare ?? definitionDefaults.cloudflare;
++	const remote = typeof process === "object" && process.env.VITEHUB_DATABASE_REMOTE === "true";
++	const cloudflare = definition.cloudflare || definitionDefaults.cloudflare ? {
++		...definitionDefaults.cloudflare,
++		...definition.cloudflare,
++		...remote ? { http: true } : {}
++	} : void 0;
+ 	return {
+ 		...cloudflare ? { cloudflare: {
+ 			...cloudflare,
+diff --git a/dist/nuxt.js b/dist/nuxt.js
+index 7fe693ce3074e376c0e144bbc6bf4f56402c8c9c..ae879b695bf0ef698d46c531a78325a802ef8dc3 100644
+--- a/dist/nuxt.js
++++ b/dist/nuxt.js
+@@ -87,6 +87,7 @@ function resolveDatabaseViteOptions(options) {
+ 		viteOptions.local = options.local;
+ 		viteOptions.migrationsTable = options.migrationsTable;
+ 		viteOptions.previewDatabaseId = options.previewDatabaseId;
++		viteOptions.remote = options.remote;
+ 	}
+ 	return Object.keys(viteOptions).length ? viteOptions : void 0;
+ }
+diff --git a/dist/runtime/definition-local.js b/dist/runtime/definition-local.js
+index b7554df36e2b1ab35d775554f2484e7d9a9dc225..9b71d69332b83fd4b1a07879ec38407e7f688c57 100644
+--- a/dist/runtime/definition-local.js
++++ b/dist/runtime/definition-local.js
+@@ -12,6 +12,7 @@ function resolveLocalUrl(url) {
+ }
+ function createDefinitionRuntime(definition) {
+ 	return createDrizzleSqliteAdapter(runtimeConfig(definition), definition.schema, {
++		cloudflareD1Http: true,
+ 		libsql: {
+ 			createClient,
+ 			drizzle
+diff --git a/dist/types-nPF7IReI.d.ts b/dist/types-nPF7IReI.d.ts
+index be7782a21685f630b998396e63e3a10a3b227eff..ff54e730a6cc49cff6d32415bce56b3ded29f211 100644
+--- a/dist/types-nPF7IReI.d.ts
++++ b/dist/types-nPF7IReI.d.ts
+@@ -43,6 +43,7 @@ interface DatabaseRuntimeD1Options {
+   local?: DatabaseLocalRuntimeOptions;
+   migrationsTable?: string;
+   previewDatabaseId?: DatabaseConfigValue;
++  remote?: boolean;
+ }
+ interface DatabaseIntegrationOptions {
+   cli?: false | {
+diff --git a/dist/vite-eGN6A9mQ.js b/dist/vite-eGN6A9mQ.js
+index 11ddd81537e1e5ac576c5e45607c2b0a311387bc..8301b04321038fdafab65dc056457b5f43badb73 100644
+--- a/dist/vite-eGN6A9mQ.js
++++ b/dist/vite-eGN6A9mQ.js
+@@ -1387,8 +1387,10 @@ function hubDb(options) {
+ 				provision
+ 			};
+ 		} },
+-		config(config) {
++		config(config, environment) {
+ 			serverDirs = config["__vitehubServerDirs"] ?? serverDirs;
++			const database = config.database ?? options;
++			if (environment.command === "serve" && database && typeof database === "object" && database.remote === true) process.env.VITEHUB_DATABASE_REMOTE = "true";
+ 		},
+ 		async configResolved(config) {
+ 			resolved = config;
+@@ -1430,10 +1432,13 @@ function hubDb(options) {
+ 		load(id) {
+ 			if (id === RESOLVED_DB_VIRTUAL_SCHEMA_ID) return renderSchemaModule(runtimeConfig);
+ 			if (id === RESOLVED_DB_VIRTUAL_DATABASES_ID) return renderDatabasesModule(runtimeConfig);
+-			if (id === RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID) {
++			if (id === RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID || normalize(id).endsWith("/@vite-hub/database/dist/runtime/definition-defaults.js")) {
+ 				const options = resolvedOptions();
+ 				return `export default ${JSON.stringify({
+-					...options && options.driver === "d1" ? { cloudflare: { binding: options.binding } } : {},
++					...options && options.driver === "d1" ? { cloudflare: {
++						binding: options.binding,
++						...options.remote === true && resolved?.command === "serve" ? { http: true } : {}
++					} } : {},
+ 					...options && options.connection ? { connection: options.connection } : {}
+ 				})}\n`;
+ 			}

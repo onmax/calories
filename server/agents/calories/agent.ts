@@ -8,9 +8,17 @@ import { blob } from "vite-hub/blob"
 import { renderMarkdownTemplate } from "vite-hub/markdown-template"
 import { useServerEnv } from "#vitehub/env/server"
 import database, * as schema from "../../databases/config"
+import { getTelegramPhotoIdentity } from "../../utils/meal-deduplication"
 import { mealAnalysisOutputSchema, type MealAnalysisOutput } from "../../utils/meal-analysis"
 
 const model = "zai/glm-5v-turbo"
+
+async function createTelegramMealId(chatId: string, photoIdentity: string): Promise<string> {
+  const input = new TextEncoder().encode(`${chatId}\0${photoIdentity}`)
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", input))
+  const hex = Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("")
+  return `telegram-${hex.slice(0, 32)}`
+}
 
 export default defineAgent({
   channels: {
@@ -71,8 +79,22 @@ export default defineAgent({
       const batches = analyses.length === 1
         ? [{ analysis: analyses[0]!, images }]
         : analyses.map((analysis, index) => ({ analysis, images: [images[index]!] }))
-      const rows = await Promise.all(batches.map(async ({ analysis, images: batchImages }) => {
-        const id = crypto.randomUUID()
+      const persisted = await Promise.all(batches.map(async ({ analysis, images: batchImages }) => {
+        const photoIdentity = getTelegramPhotoIdentity(batchImages)
+        if (photoIdentity) {
+          const [existing] = await database.select()
+            .from(schema.meals)
+            .where(and(
+              eq(schema.meals.telegramChatId, chatId),
+              eq(schema.meals.telegramPhotoUniqueId, photoIdentity),
+            ))
+            .limit(1)
+          if (existing) return { duplicate: true, meal: existing }
+        }
+
+        const id = photoIdentity
+          ? await createTelegramMealId(chatId, photoIdentity)
+          : crypto.randomUUID()
         const photos = await Promise.all(batchImages.map(async (image, index) => {
           const data = image.fetchData ? await image.fetchData() : image.data
           const bytes = data instanceof Uint8Array
@@ -97,7 +119,7 @@ export default defineAgent({
         const [photo] = photos
         if (!photo) throw new Error("The Calories Agent requires at least one stored photo.")
 
-        return {
+        const meal = {
           analyzedAt: timestamp,
           assumptions: analysis.assumptions,
           confidence: analysis.confidence,
@@ -120,11 +142,27 @@ export default defineAgent({
           telegramChatId: chatId,
           telegramMessageId: messageId,
           telegramPhotoFileId: photo.image.fetchMetadata?.fileId,
+          telegramPhotoUniqueId: photoIdentity,
           totalCalories: analysis.totalCalories,
           updatedAt: timestamp,
         }
+        if (!photoIdentity) {
+          await database.insert(schema.meals).values(meal)
+          return { duplicate: false, meal }
+        }
+
+        await database.insert(schema.meals).values(meal).onConflictDoNothing()
+        const [stored] = await database.select()
+          .from(schema.meals)
+          .where(and(
+            eq(schema.meals.telegramChatId, chatId),
+            eq(schema.meals.telegramPhotoUniqueId, photoIdentity),
+          ))
+          .limit(1)
+        if (!stored) throw new Error("The Calories Agent could not resolve the stored photo.")
+        return { duplicate: stored.id !== id, meal: stored }
       }))
-      await database.insert(schema.meals).values(rows)
+      const rows = persisted.map(result => result.meal)
 
       const startOfTodayUtc = new Date(timestamp)
       startOfTodayUtc.setUTCHours(0, 0, 0, 0)
@@ -152,13 +190,16 @@ export default defineAgent({
       return event.reply(await renderMarkdownTemplate(reply, {
         data: {
           dashboardLink: `[Open dashboard](${url})`,
-          items: analyses
-            .flatMap(analysis => analysis.items)
+          duplicateNotice: persisted.some(result => result.duplicate)
+            ? "Already logged — this photo was not counted again.\n\n"
+            : "",
+          items: rows
+            .flatMap(meal => meal.items)
             .map(item => `- ${item.name}, ${item.portion}: ${item.calories.toLocaleString("en-US")} kcal`)
             .join("\n"),
           todayCalories: todayCalories.toLocaleString("en-US"),
-          totalCalories: analyses
-            .reduce((total, analysis) => total + analysis.totalCalories, 0)
+          totalCalories: rows
+            .reduce((total, meal) => total + (meal.totalCalories ?? 0), 0)
             .toLocaleString("en-US"),
         },
       }))

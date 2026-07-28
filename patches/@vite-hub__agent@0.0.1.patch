@@ -2,6 +2,12 @@ diff --git a/dist/routes-BhZC29Lp.js b/dist/routes-BhZC29Lp.js
 index 71817bef321cc58ff86db1c57c5327405f80248c..822ec06676bb07942c43368bc9e0e3554b1c3d23 100644
 --- a/dist/routes-BhZC29Lp.js
 +++ b/dist/routes-BhZC29Lp.js
+@@ -959 +959,2 @@ function createChatSdkConfig(adapterName, adapter, state, options) {
+ function createChatSdkConfig(adapterName, adapter, state, options) {
++	const concurrency = chatSdkOption(options, "concurrency");
+@@ -964 +965 @@ function createChatSdkConfig(adapterName, adapter, state, options) {
+-		concurrency: chatSdkOption(options, "concurrency"),
++		concurrency: concurrency === "parallel" ? "concurrent" : concurrency,
 @@ -1342,6 +1342,22 @@ async function postChatMessage(thread, message) {
  		attachments: [...Array.isArray(postable.attachments) ? postable.attachments : [], ...attachments]
  	});
@@ -142,3 +148,10 @@ index 0bfc07ca2cc6771d6230ea3be02fcd723e2fcf8b..8e4a9e83a63ead42cdb7672a44cd2cbc
    transcripts?: TranscriptsConfig;
    triggerHistory?: AgentChatTriggerHistory;
    userName?: string;
+diff --git a/dist/vite.js b/dist/vite.js
+index 1a68c583135fe4a170fdcdaa328efe9fd151f97e..dd010f236cf5c8a861f8414fb84e33853b4d6b6f 100644
+--- a/dist/vite.js
++++ b/dist/vite.js
+@@ -2546 +2546 @@ function generatedLibsqlChatStateHelper(state) {
+-		"let viteHubChatState",
++		"let viteHubChatState: ReturnType<typeof createLibsqlAgentState> | undefined",

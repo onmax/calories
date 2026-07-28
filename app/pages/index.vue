@@ -23,22 +23,32 @@ const dailyProteinGoal = 150
 const todayKey = dateKey(now)
 const todayMeals = computed(() => readyMeals.value.filter(meal => dateKey(meal.createdAt) === todayKey))
 const todayCalories = computed(() => todayMeals.value.reduce((sum, meal) => sum + (meal.totalCalories ?? 0), 0))
-const lastSevenDays = computed(() => {
-  const days = Array.from({ length: 7 }, (_, offset) => {
-    const date = new Date()
-    date.setDate(date.getDate() - (6 - offset))
+const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+const monthStartOffset = (monthStart.getDay() + 6) % 7
+const monthLabel = new Intl.DateTimeFormat(undefined, { month: "long" }).format(now)
+const monthDays = computed(() => {
+  const dayCount = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  return Array.from({ length: dayCount }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth(), index + 1)
     const key = dateKey(date)
+    const calories = readyMeals.value
+      .filter(meal => dateKey(meal.createdAt) === key)
+      .reduce((sum, meal) => sum + (meal.totalCalories ?? 0), 0)
     return {
-      calories: readyMeals.value.filter(meal => dateKey(meal.createdAt) === key).reduce((sum, meal) => sum + (meal.totalCalories ?? 0), 0),
+      calories,
+      dateLabel: new Intl.DateTimeFormat(undefined, { dateStyle: "full" }).format(date),
+      day: index + 1,
+      isFuture: date > now,
       isToday: key === todayKey,
       key,
-      label: new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date),
+      overflow: Math.min(100, Math.max(0, calories - dailyCalorieGoal) / dailyCalorieGoal * 100),
+      progress: Math.min(100, calories / dailyCalorieGoal * 100),
     }
   })
-  const max = Math.max(...days.map(day => day.calories), 1)
-  return days.map(day => ({ ...day, height: day.calories ? Math.max(12, Math.round(day.calories / max * 100)) : 0 }))
 })
-const weekCalories = computed(() => lastSevenDays.value.reduce((sum, day) => sum + day.calories, 0))
+const monthCalories = computed(() => monthDays.value.reduce((sum, day) => sum + day.calories, 0))
+const loggedMonthDays = computed(() => monthDays.value.filter(day => day.calories > 0).length)
+const monthDailyAverage = computed(() => loggedMonthDays.value ? Math.round(monthCalories.value / loggedMonthDays.value) : 0)
 const todayLabel = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric" }).format(now)
 const todayWeekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(now)
 
@@ -67,7 +77,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="calories-app">
-    <AppHeader :loading="status === 'pending'" :pending-count="pendingMeals.length" @refresh="refresh()" />
+    <AppHeader :pending-count="pendingMeals.length" />
 
     <div class="workspace">
       <section class="day-view">
@@ -87,7 +97,15 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <WeekOverview :days="lastSevenDays" :total="weekCalories" :cost-usd="costUsd" />
+        <MonthOverview
+          :average="monthDailyAverage"
+          :cost-usd="costUsd"
+          :days="monthDays"
+          :goal="dailyCalorieGoal"
+          :month="monthLabel"
+          :start-offset="monthStartOffset"
+          :total="monthCalories"
+        />
         <MealStage :loading="status === 'pending'" :meal="selectedMeal" />
         <MealHistory :has-error="!!error" :loading="status === 'pending'" :meals="meals" :selected-id="selectedMeal?.id" @select="selectMeal" />
       </section>
