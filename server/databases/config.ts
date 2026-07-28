@@ -10,6 +10,7 @@ export const meals = sqliteTable("meals", {
   telegramMessageId: integer("telegram_message_id").notNull(),
   telegramPhotoFileId: text("telegram_photo_file_id"),
   telegramPhotoUniqueId: text("telegram_photo_unique_id"),
+  photoPerceptualHash: text("photo_perceptual_hash"),
   caption: text("caption"),
   photoPath: text("photo_path").notNull(),
   photoContentType: text("photo_content_type"),
@@ -30,6 +31,7 @@ export const meals = sqliteTable("meals", {
 }, table => [
   index("meals_created_idx").on(table.createdAt),
   index("meals_status_idx").on(table.status),
+  uniqueIndex("meals_photo_perceptual_hash_idx").on(table.telegramChatId, table.photoPerceptualHash),
   uniqueIndex("meals_telegram_photo_unique_idx").on(table.telegramChatId, table.telegramPhotoUniqueId),
 ])
 

@@ -1,6 +1,6 @@
 import { createGateway } from "@ai-sdk/gateway"
 import { createTelegramAdapter } from "@chat-adapter/telegram"
-import { and, eq, gte } from "drizzle-orm"
+import { and, eq, gte, or } from "drizzle-orm"
 import { useStorage } from "nitro/storage"
 import { defineAgent, type ImagePart } from "vite-hub/agent"
 import { telegram } from "vite-hub/agent/channels"
@@ -10,6 +10,7 @@ import { useServerEnv } from "#vitehub/env/server"
 import database, * as schema from "../../databases/config"
 import { getTelegramPhotoIdentity } from "../../utils/meal-deduplication"
 import { mealAnalysisOutputSchema, type MealAnalysisOutput } from "../../utils/meal-analysis"
+import { createJpegPerceptualHash } from "../../utils/photo-perceptual-hash"
 
 const model = "zai/glm-5v-turbo"
 
@@ -80,21 +81,18 @@ export default defineAgent({
         ? [{ analysis: analyses[0]!, images }]
         : analyses.map((analysis, index) => ({ analysis, images: [images[index]!] }))
       const persisted = await Promise.all(batches.map(async ({ analysis, images: batchImages }) => {
-        const photoIdentity = getTelegramPhotoIdentity(batchImages)
-        if (photoIdentity) {
+        const telegramPhotoIdentity = getTelegramPhotoIdentity(batchImages)
+        if (telegramPhotoIdentity) {
           const [existing] = await database.select()
             .from(schema.meals)
             .where(and(
               eq(schema.meals.telegramChatId, chatId),
-              eq(schema.meals.telegramPhotoUniqueId, photoIdentity),
+              eq(schema.meals.telegramPhotoUniqueId, telegramPhotoIdentity),
             ))
             .limit(1)
           if (existing) return { duplicate: true, meal: existing }
         }
 
-        const id = photoIdentity
-          ? await createTelegramMealId(chatId, photoIdentity)
-          : crypto.randomUUID()
         const photos = await Promise.all(batchImages.map(async (image, index) => {
           const data = image.fetchData ? await image.fetchData() : image.data
           const bytes = data instanceof Uint8Array
@@ -107,17 +105,44 @@ export default defineAgent({
           if (!bytes) throw new Error("Telegram did not provide binary image data.")
 
           const contentType = image.mediaType.startsWith("image/") ? image.mediaType : "image/jpeg"
-          const photoPath = index === 0 ? `meals/${id}/original` : `meals/${id}/photos/${index}`
-          const [storageError] = await blob.put(photoPath, bytes, {
+          const perceptualHash = contentType === "image/jpeg"
+            ? createJpegPerceptualHash(bytes)
+            : undefined
+          return { bytes, contentType, image, index, perceptualHash }
+        }))
+        const [photo] = photos
+        if (!photo) throw new Error("The Calories Agent requires at least one photo.")
+
+        const photoPerceptualHash = photos.every(photo => photo.perceptualHash)
+          ? photos.map(photo => photo.perceptualHash).join(":")
+          : undefined
+        if (photoPerceptualHash) {
+          const [existing] = await database.select()
+            .from(schema.meals)
+            .where(and(
+              eq(schema.meals.telegramChatId, chatId),
+              eq(schema.meals.photoPerceptualHash, photoPerceptualHash),
+            ))
+            .limit(1)
+          if (existing) return { duplicate: true, meal: existing }
+        }
+
+        const identity = photoPerceptualHash ?? telegramPhotoIdentity
+        const id = identity
+          ? await createTelegramMealId(chatId, identity)
+          : crypto.randomUUID()
+        const storedPhotos = await Promise.all(photos.map(async (photo) => {
+          const photoPath = photo.index === 0 ? `meals/${id}/original` : `meals/${id}/photos/${photo.index}`
+          const [storageError] = await blob.put(photoPath, photo.bytes, {
             access: "private",
-            contentType,
+            contentType: photo.contentType,
             customMetadata: { mealId: id, source: "telegram" },
           })
           if (storageError) throw storageError
-          return { bytes, contentType, image, photoPath }
+          return { ...photo, photoPath }
         }))
-        const [photo] = photos
-        if (!photo) throw new Error("The Calories Agent requires at least one stored photo.")
+        const [storedPhoto] = storedPhotos
+        if (!storedPhoto) throw new Error("The Calories Agent requires at least one stored photo.")
 
         const meal = {
           analyzedAt: timestamp,
@@ -127,12 +152,13 @@ export default defineAgent({
           id,
           items: analysis.items,
           model,
-          photoBytes: photo.bytes.byteLength,
-          photoContentType: photo.contentType,
-          photoPath: photo.photoPath,
+          photoBytes: storedPhoto.bytes.byteLength,
+          photoContentType: storedPhoto.contentType,
+          photoPath: storedPhoto.photoPath,
+          photoPerceptualHash,
           rawOutput: {
             ...analysis,
-            photos: photos.map(({ bytes, contentType, photoPath }) => ({
+            photos: storedPhotos.map(({ bytes, contentType, photoPath }) => ({
               bytes: bytes.byteLength,
               contentType,
               path: photoPath,
@@ -141,12 +167,12 @@ export default defineAgent({
           status: "ready" as const,
           telegramChatId: chatId,
           telegramMessageId: messageId,
-          telegramPhotoFileId: photo.image.fetchMetadata?.fileId,
-          telegramPhotoUniqueId: photoIdentity,
+          telegramPhotoFileId: storedPhoto.image.fetchMetadata?.fileId,
+          telegramPhotoUniqueId: telegramPhotoIdentity,
           totalCalories: analysis.totalCalories,
           updatedAt: timestamp,
         }
-        if (!photoIdentity) {
+        if (!identity) {
           await database.insert(schema.meals).values(meal)
           return { duplicate: false, meal }
         }
@@ -156,7 +182,14 @@ export default defineAgent({
           .from(schema.meals)
           .where(and(
             eq(schema.meals.telegramChatId, chatId),
-            eq(schema.meals.telegramPhotoUniqueId, photoIdentity),
+            or(
+              photoPerceptualHash
+                ? eq(schema.meals.photoPerceptualHash, photoPerceptualHash)
+                : undefined,
+              telegramPhotoIdentity
+                ? eq(schema.meals.telegramPhotoUniqueId, telegramPhotoIdentity)
+                : undefined,
+            ),
           ))
           .limit(1)
         if (!stored) throw new Error("The Calories Agent could not resolve the stored photo.")

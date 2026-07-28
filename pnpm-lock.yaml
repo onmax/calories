@@ -43,6 +43,9 @@ importers:
       h3:
         specifier: 2.0.1-rc.25
         version: 2.0.1-rc.25(crossws@0.4.10(srvx@0.11.22))
+      jpeg-js:
+        specifier: 0.4.4
+        version: 0.4.4
       nuxt:
         specifier: npm:nuxt-nightly@5.0.0-29746924.1554961a
         version: nuxt-nightly@5.0.0-29746924.1554961a(bd8a6527ea11c118066caaad7387fdc9)

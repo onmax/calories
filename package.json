@@ -34,6 +34,7 @@
     "@vite-hub/source": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/source@726719186e26617b0311e7426b9204be29c9cdfa",
     "drizzle-orm": "0.45.2",
     "h3": "2.0.1-rc.25",
+    "jpeg-js": "0.4.4",
     "nuxt": "npm:nuxt-nightly@5.0.0-29746924.1554961a",
     "ofetch": "2.0.0-alpha.3",
     "tailwindcss": "4.3.3",
