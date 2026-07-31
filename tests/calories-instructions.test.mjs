@@ -47,6 +47,13 @@ test("text descriptions can create meals without a photo", () => {
   assert.doesNotMatch(agent, /requires at least one image/i)
 })
 
+test("each distinct album photo produces its own meal analysis", () => {
+  assert.match(instructions, /multiple photos.*exactly one analysis per photo/is)
+  assert.match(instructions, /same order/i)
+  assert.match(instructions, /separate consumed portion/i)
+  assert.match(instructions, /explicitly says.*multiple views of the same meal/is)
+})
+
 test("explicit meal times are preserved in the user's time zone", () => {
   assert.match(instructions, /consumedAt/)
   assert.match(instructions, /ISO 8601 timestamp with an offset/i)
