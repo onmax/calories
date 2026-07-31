@@ -13,7 +13,7 @@ export interface Meal {
     portion: string
   }>
   model?: string
-  photoUrl: string
+  photoUrl?: string
   status: "received" | "processing" | "ready" | "failed"
   totalCalories?: number
 }
@@ -24,6 +24,13 @@ export function formatMealTime(value: string): string {
 
 export function getMealTitle(meal: Meal): string {
   return meal.items.map(item => item.name).slice(0, 2).join(" + ") || meal.caption || (meal.status === "failed" ? "Analysis failed" : "Analyzing photo")
+}
+
+export function getMealPhotoUrl(meal: Meal): string | undefined {
+  if (!meal.photoUrl) return undefined
+  return import.meta.dev
+    ? new URL(meal.photoUrl, "https://vitehub-calories.maximogarciamtnez.workers.dev").toString()
+    : meal.photoUrl
 }
 
 export function getMealStatusLabel(meal: Meal): string {

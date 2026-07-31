@@ -17,10 +17,10 @@ index c450e5771f234d547d688818df2750f0d1d013a1..f02ae10d6e6d054c35e8e48b55d95b64
  		...cloudflare ? { cloudflare: {
  			...cloudflare,
 diff --git a/dist/nuxt.js b/dist/nuxt.js
-index 7fe693ce3074e376c0e144bbc6bf4f56402c8c9c..ae879b695bf0ef698d46c531a78325a802ef8dc3 100644
+index 042fad1cdb9f35beb9d8783bb64b1dcb3850d461..d7b40981bb65743c80a040797c3eb8769f62b6cd 100644
 --- a/dist/nuxt.js
 +++ b/dist/nuxt.js
-@@ -87,6 +87,7 @@ function resolveDatabaseViteOptions(options) {
+@@ -89,6 +89,7 @@ function resolveDatabaseViteOptions(options) {
  		viteOptions.local = options.local;
  		viteOptions.migrationsTable = options.migrationsTable;
  		viteOptions.previewDatabaseId = options.previewDatabaseId;
@@ -29,7 +29,7 @@ index 7fe693ce3074e376c0e144bbc6bf4f56402c8c9c..ae879b695bf0ef698d46c531a78325a8
  	return Object.keys(viteOptions).length ? viteOptions : void 0;
  }
 diff --git a/dist/runtime/definition-local.js b/dist/runtime/definition-local.js
-index b7554df36e2b1ab35d775554f2484e7d9a9dc225..9b71d69332b83fd4b1a07879ec38407e7f688c57 100644
+index 276aac62cfd3631c298226827f95564199e979db..d4e5358e43b44304e03c73fbf234bee6c5368ac0 100644
 --- a/dist/runtime/definition-local.js
 +++ b/dist/runtime/definition-local.js
 @@ -12,6 +12,7 @@ function resolveLocalUrl(url) {
@@ -41,7 +41,7 @@ index b7554df36e2b1ab35d775554f2484e7d9a9dc225..9b71d69332b83fd4b1a07879ec38407e
  			createClient,
  			drizzle
 diff --git a/dist/types-nPF7IReI.d.ts b/dist/types-nPF7IReI.d.ts
-index be7782a21685f630b998396e63e3a10a3b227eff..ff54e730a6cc49cff6d32415bce56b3ded29f211 100644
+index be7782a21685f630b998396e63e3a10a3b227eff..a82d10b7ee10dab4de6ad7ecbc084e77841c2671 100644
 --- a/dist/types-nPF7IReI.d.ts
 +++ b/dist/types-nPF7IReI.d.ts
 @@ -43,6 +43,7 @@ interface DatabaseRuntimeD1Options {
@@ -52,11 +52,11 @@ index be7782a21685f630b998396e63e3a10a3b227eff..ff54e730a6cc49cff6d32415bce56b3d
  }
  interface DatabaseIntegrationOptions {
    cli?: false | {
-diff --git a/dist/vite-eGN6A9mQ.js b/dist/vite-eGN6A9mQ.js
-index 11ddd81537e1e5ac576c5e45607c2b0a311387bc..8301b04321038fdafab65dc056457b5f43badb73 100644
---- a/dist/vite-eGN6A9mQ.js
-+++ b/dist/vite-eGN6A9mQ.js
-@@ -1387,8 +1387,10 @@ function hubDb(options) {
+diff --git a/dist/vite-BhybkS79.js b/dist/vite-BhybkS79.js
+index 072d46f2ff52cad05394c0536ca000ee9ba645f8..981754f0774f5e464bd9ce19019c24c1be3e43b2 100644
+--- a/dist/vite-BhybkS79.js
++++ b/dist/vite-BhybkS79.js
+@@ -1391,8 +1391,10 @@ function hubDb(options) {
  				provision
  			};
  		} },
@@ -68,7 +68,7 @@ index 11ddd81537e1e5ac576c5e45607c2b0a311387bc..8301b04321038fdafab65dc056457b5f
  		},
  		async configResolved(config) {
  			resolved = config;
-@@ -1430,10 +1432,13 @@ function hubDb(options) {
+@@ -1434,10 +1436,13 @@ function hubDb(options) {
  		load(id) {
  			if (id === RESOLVED_DB_VIRTUAL_SCHEMA_ID) return renderSchemaModule(runtimeConfig);
  			if (id === RESOLVED_DB_VIRTUAL_DATABASES_ID) return renderDatabasesModule(runtimeConfig);

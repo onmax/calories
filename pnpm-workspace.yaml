@@ -1,5 +1,8 @@
+overrides:
+  '@vite-hub/agent': https://pkg.pr.new/vite-hub/vitehub/@vite-hub/agent@6db78c68baaafd0515ab120e12e8c3660b3e62e8
+  '@vite-hub/database': https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@bf165f20d8519da2f54d6aa9d015889f258752f2
 patchedDependencies:
   '@chat-adapter/telegram@4.35.0': patches/@chat-adapter__telegram@4.35.0.patch
   '@vite-hub/agent@0.0.1': patches/@vite-hub__agent@0.0.1.patch
+  '@vite-hub/blob@0.0.1': patches/@vite-hub__blob@0.0.1.patch
   '@vite-hub/database@0.0.1': patches/@vite-hub__database@0.0.1.patch
-  vite-hub@0.0.1: patches/vite-hub@0.0.1.patch

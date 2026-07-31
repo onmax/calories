@@ -7,7 +7,10 @@ defineProps<{ loading: boolean, meal?: Meal }>()
 <template>
   <article class="meal-stage" :class="{ empty: !meal }">
     <template v-if="meal">
-      <img :key="meal.id" :src="meal.photoUrl" :alt="getMealTitle(meal)" class="stage-photo">
+      <img v-if="meal.photoUrl" :key="meal.id" :src="meal.photoUrl" :alt="getMealTitle(meal)" class="stage-photo">
+      <div v-else class="stage-photo stage-photo-placeholder">
+        <UIcon name="i-lucide-message-square-text" />
+      </div>
       <div class="stage-shade" />
       <div class="stage-topline">
         <span class="stage-status" :data-status="meal.status"><span />{{ getMealStatusLabel(meal) }}</span>

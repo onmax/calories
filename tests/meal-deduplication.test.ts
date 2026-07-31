@@ -36,6 +36,10 @@ test("old adapters without a unique ID do not produce a misleading identity", ()
   )
 })
 
+test("text-only messages do not produce a photo identity", () => {
+  assert.equal(getTelegramPhotoIdentity([]), undefined)
+})
+
 test("JPEG recompression preserves the visual identity", () => {
   const width = 64
   const height = 64

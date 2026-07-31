@@ -2,22 +2,12 @@ import { defineConfig } from "vite"
 import { vitehub, type ViteHubOptions } from "vite-hub"
 import { env, type EnvViteUserConfig } from "vite-hub/env"
 
-const development = process.env.NODE_ENV !== "production"
-
 export const viteHubOptions = {
   preset: "cloudflare",
-  agent: {
-    eval: false,
+  agent: {},
+  blob: {
+    serve: { route: "/photos" },
   },
-  blob: development
-    ? {
-        base: ".vitehub/data/blob",
-        driver: "fs",
-        serve: { route: "/photos" },
-      }
-    : {
-        serve: { route: "/photos" },
-      },
   database: {
     databaseId: process.env.CLOUDFLARE_D1_DATABASE_ID,
     databaseName: process.env.CLOUDFLARE_D1_DATABASE_NAME || "vitehub-calories",
@@ -29,6 +19,12 @@ export const viteHubOptions = {
 export const viteConfig = {
   env: {
     server: {
+      calories: {
+        timeZone: env({
+          optional: true,
+          source: env.source("CALORIES_TIME_ZONE"),
+        }),
+      },
       telegram: {
         allowedUserId: env({
           source: env.source("TELEGRAM_ALLOWED_USER_ID"),

@@ -1,14 +1,29 @@
 <script setup lang="ts">
-defineProps<{ pendingCount: number }>()
+defineProps<{
+  average: number
+  monthLabel: string
+  total: number
+}>()
 </script>
 
 <template>
   <header class="app-header">
     <div class="brand-lockup">
       <span class="brand-symbol" aria-hidden="true"><UIcon name="i-lucide-flame" /></span>
-      <div><p>Calories</p><span>Photo food journal</span></div>
+      <p>Calories</p>
     </div>
 
-    <span class="source-status" :data-busy="pendingCount > 0"><span class="status-dot" /><span>{{ pendingCount ? `${pendingCount} processing` : "Telegram connected" }}</span></span>
+    <h1 class="header-month">{{ monthLabel }}</h1>
+
+    <dl class="header-metrics">
+      <div>
+        <dt>Month</dt>
+        <dd><strong class="tabular-nums">{{ total.toLocaleString() }}</strong><span>kcal</span></dd>
+      </div>
+      <div>
+        <dt>Average</dt>
+        <dd><strong class="tabular-nums">{{ average.toLocaleString() }}</strong><span>kcal</span></dd>
+      </div>
+    </dl>
   </header>
 </template>

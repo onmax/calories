@@ -1,3 +1,5 @@
-{{{ duplicateNotice }}}{{{ items }}}
+{{{ duplicateNotice }}}
 
-**{{ totalCalories }} kcal** · {{ todayCalories }} kcal today · {{{ dashboardLink }}}
+{{{ items }}}
+
+**{{ totalCalories }} kcal** · {{ todayCalories }} kcal today · {{ cost }} · {{{ dashboardLink }}}

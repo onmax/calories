@@ -1,13 +1,15 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { createTelegramAdapter } from "@chat-adapter/telegram"
+import { telegram } from "vite-hub/agent/channels"
 
-test("the Telegram adapter preserves file_unique_id on image parts", () => {
-  const adapter = createTelegramAdapter({
+test("the ViteHub Telegram channel preserves file_unique_id on image parts", async () => {
+  const channel = telegram({
     botToken: "test-token",
     mode: "webhook",
     userName: "test_bot",
   })
+  assert.equal(typeof channel.adapter, "function")
+  const adapter = await channel.adapter({})
   const message = adapter.parseMessage({
     chat: { id: 1, type: "private" },
     date: 1,

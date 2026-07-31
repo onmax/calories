@@ -1,0 +1,49 @@
+diff --git a/dist/vite.js b/dist/vite.js
+index cbcecea7df59aedcf44015d6d4905d51e86cc3c1..42702e66c201556db80c71d487b0f4fcf660f981 100644
+--- a/dist/vite.js
++++ b/dist/vite.js
+@@ -1925,13 +1925,16 @@ function normalizeNitroRoute(route) {
+ function blobServeNitroRoute(serve) {
+ 	return `${normalizeNitroRoute(serve.route).replace(/\/+$/, "")}/**`;
+ }
+-function mergeNitroBlobConfig(value, serve, cloudflare) {
++function mergeNitroBlobConfig(value, serve, cloudflare, root) {
+ 	const nitro = cloneNitroConfig(value);
+-	const plugins = Array.isArray(nitro.plugins) ? [...nitro.plugins] : [];
+-	if (!plugins.includes(generatedNitroBlobPlugin)) plugins.push(generatedNitroBlobPlugin);
+-	const handlers = Array.isArray(nitro.handlers) ? nitro.handlers.filter((handler) => handler?.handler !== generatedNitroBlobMiddleware) : [];
++	const plugin = root ? resolve$1(root, generatedNitroBlobPlugin) : generatedNitroBlobPlugin;
++	const middleware = root ? resolve$1(root, generatedNitroBlobMiddleware) : generatedNitroBlobMiddleware;
++	const serveHandler = root ? resolve$1(root, generatedBlobServeRouteHandler) : generatedBlobServeRouteHandler;
++	const plugins = Array.isArray(nitro.plugins) ? nitro.plugins.filter((entry) => entry !== generatedNitroBlobPlugin && entry !== plugin) : [];
++	plugins.push(plugin);
++	const handlers = Array.isArray(nitro.handlers) ? nitro.handlers.filter((handler) => handler?.handler !== generatedNitroBlobMiddleware && handler?.handler !== middleware) : [];
+ 	if (cloudflare) handlers.unshift({
+-		handler: generatedNitroBlobMiddleware,
++		handler: middleware,
+ 		middleware: true,
+ 		route: "/**"
+ 	});
+@@ -1940,11 +1943,11 @@ function mergeNitroBlobConfig(value, serve, cloudflare) {
+ 		handlers,
+ 		plugins
+ 	};
+-	const existingHandlers = handlers.filter((handler) => handler?.handler !== generatedBlobServeRouteHandler);
++	const existingHandlers = handlers.filter((handler) => handler?.handler !== generatedBlobServeRouteHandler && handler?.handler !== serveHandler);
+ 	return {
+ 		...nitro,
+ 		handlers: [...existingHandlers, {
+-			handler: generatedBlobServeRouteHandler,
++			handler: serveHandler,
+ 			route: blobServeNitroRoute(serve)
+ 		}],
+ 		plugins
+@@ -2072,7 +2075,7 @@ function hubBlob(options) {
+ 			const configuredNitro = config.nitro;
+ 			cloudflareOwnedByNitro = (nitroOwned || hasNitroConfigContext(config)) && isNitroCloudflareHost(configuredNitro);
+ 			const blobConfig = resolveBlobViteConfig(blob, cloudflareOwnedByNitro ? { hosting: "cloudflare" } : void 0);
+-			config.nitro = mergeNitroCloudflareBlobOutput(config, mergeNitroBlobConfig(configuredNitro, blobConfig.blob ? blobConfig.blob.serve : void 0, cloudflareOwnedByNitro), blob, cloudflareOwnedByNitro);
++			config.nitro = mergeNitroCloudflareBlobOutput(config, mergeNitroBlobConfig(configuredNitro, blobConfig.blob ? blobConfig.blob.serve : void 0, cloudflareOwnedByNitro, config.root), blob, cloudflareOwnedByNitro);
+ 			providerOutput = useComposedProviderOutput(config);
+ 			runtimeConfig = blobConfig;
+ 			const hosting = getNitroHostingProvider(configuredNitro) ?? (resolveNitroVercelFunctionName(config, "blob") ? "vercel" : void 0);

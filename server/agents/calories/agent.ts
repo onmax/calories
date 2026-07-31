@@ -1,18 +1,51 @@
-import { createGateway } from "@ai-sdk/gateway"
-import { createTelegramAdapter } from "@chat-adapter/telegram"
-import { and, eq, gte, or } from "drizzle-orm"
+import { and, eq, or } from "drizzle-orm"
 import { useStorage } from "nitro/storage"
-import { defineAgent, type ImagePart } from "vite-hub/agent"
+import { defineAgent, gateway, type ImagePart } from "vite-hub/agent"
+import { db, usage } from "vite-hub/agent/capabilities"
 import { telegram } from "vite-hub/agent/channels"
 import { blob } from "vite-hub/blob"
 import { renderMarkdownTemplate } from "vite-hub/markdown-template"
 import { useServerEnv } from "#vitehub/env/server"
 import database, * as schema from "../../databases/config"
 import { getTelegramPhotoIdentity } from "../../utils/meal-deduplication"
-import { mealAnalysisOutputSchema, type MealAnalysisOutput } from "../../utils/meal-analysis"
+import { caloriesAgentOutputSchema, type CaloriesAgentOutput } from "../../utils/meal-analysis"
 import { createJpegPerceptualHash } from "../../utils/photo-perceptual-hash"
 
 const model = "zai/glm-5v-turbo"
+const defaultTimeZone = "Asia/Bangkok"
+
+function getUserTimeZone(): string {
+  return useServerEnv().calories.timeZone ?? defaultTimeZone
+}
+
+function getLocalDateKey(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  }).format(date)
+}
+
+function currentTimeInstructions(): string {
+  const timeZone = getUserTimeZone()
+  const currentTime = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "long",
+    timeZone,
+  }).format(new Date())
+  return `The user's time zone is ${timeZone}. The current local date and time is ${currentTime}.`
+}
+
+function formatUsd(value: number): string {
+  const fractionDigits = value > 0 && value < 0.01 ? 6 : 2
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fractionDigits,
+    style: "currency",
+  }).format(value)
+}
 
 async function createTelegramMealId(chatId: string, photoIdentity: string): Promise<string> {
   const input = new TextEncoder().encode(`${chatId}\0${photoIdentity}`)
@@ -22,60 +55,67 @@ async function createTelegramMealId(chatId: string, photoIdentity: string): Prom
 }
 
 export default defineAgent({
+  capabilities: [
+    db({ mode: "write" }),
+    usage(),
+  ],
   channels: {
     telegram: telegram({
-      adapter: (() => {
-        const { telegram } = useServerEnv()
-        return createTelegramAdapter({
-          allowedUserIds: [telegram.allowedUserId],
-          botToken: telegram.botToken.unseal(),
-          mode: "webhook",
-          secretToken: telegram.webhookSecret?.unseal(),
-          userName: "vitehub_calories_bot",
-        })
-      }),
+      allowedUserIds: () => [useServerEnv().telegram.allowedUserId],
+      botToken: () => useServerEnv().telegram.botToken,
       messages: {
-        concurrency: "parallel",
+        concurrency: "queue",
         delivery: "manual",
-        errorFallbackText: "I couldn’t analyze that photo. Please send it again.",
-        fallbackStreamingPlaceholderText: "Analyzing photo…",
-        filter: ({ message }) => message.parts.some(part => part.type === "image"),
-        threadHistory: { maxMessages: 5 },
-        timeout: 25_000,
+        errorFallbackText: "I couldn’t handle that. Please try again.",
+        fallbackStreamingPlaceholderText: "Thinking…",
+        triggerHistory: { maxMessages: 8, source: "thread" },
+        timeout: 50_000,
       },
-      webhooks: {
-        id: "telegram",
-        secretToken: () => useServerEnv().telegram.webhookSecret?.unseal() || false,
-      },
+      mode: "webhook",
+      userName: "vitehub_calories_bot",
+      webhookSecret: () => useServerEnv().telegram.webhookSecret ?? false,
     }),
   },
   driver: {
-    model: () => createGateway({
-      apiKey: useServerEnv().vercelAiGatewayToken.unseal(),
-    })(model),
-    output: { schema: mealAnalysisOutputSchema },
+    instructions: currentTimeInstructions,
+    model: gateway(model, () => ({
+      apiKey: useServerEnv().vercelAiGatewayToken,
+    })),
+    output: { schema: caloriesAgentOutputSchema },
   },
   hooks: {
     async "agent:finish"(event) {
       if (event.error) return
 
-      const result = event.result as MealAnalysisOutput
-      const analyses = Array.isArray(result) ? result : [result]
+      const result = event.result as CaloriesAgentOutput
+      const usageRecord = event.extensions.get("usage")
+      const usageCost = usageRecord?.cost
+      const parsedCostUsd = usageCost?.currency === "USD" ? Number(usageCost.amount) : undefined
+      const costUsd = parsedCostUsd !== undefined && Number.isFinite(parsedCostUsd)
+        ? parsedCostUsd
+        : undefined
+      const cost = costUsd === undefined
+        ? "Cost unavailable"
+        : `${usageCost?.estimated ? "~" : ""}${formatUsd(costUsd)}`
+      if (result.kind === "reply") return event.reply(`${result.text}\n\n${cost}`)
+
+      const analyses = Array.isArray(result.analyses) ? result.analyses : [result.analyses]
       const messages = event.input.messages ?? []
       const run = event.invocation.run
       const currentMessage = messages.find(message => message.id === run?.messageId) ?? messages.at(-1)
       const images = currentMessage?.parts.filter((part): part is ImagePart => part.type === "image") ?? []
-      if (!images.length) throw new Error("The Calories Agent requires at least one image.")
       if (analyses.length > 1 && analyses.length !== images.length) {
         throw new Error("The Calories Agent must return one analysis per image.")
       }
+      const caption = currentMessage?.parts
+        .flatMap(part => part.type === "text" ? [part.text] : [])
+        .join("\n")
+        .trim() || undefined
 
       const chatId = run?.threadId?.replace(/^telegram:/, "").split(":")[0]
       const messageId = Number(run?.messageId?.split(":").at(-1))
       if (!chatId || !Number.isSafeInteger(messageId)) throw new Error("Telegram channel metadata is incomplete.")
 
-      const usage = event.invocation.usage
-      const costUsd = usage?.cost?.currency === "USD" ? Number(usage.cost.amount) : 0
       const timestamp = new Date()
       const batches = analyses.length === 1
         ? [{ analysis: analyses[0]!, images }]
@@ -110,10 +150,7 @@ export default defineAgent({
             : undefined
           return { bytes, contentType, image, index, perceptualHash }
         }))
-        const [photo] = photos
-        if (!photo) throw new Error("The Calories Agent requires at least one photo.")
-
-        const photoPerceptualHash = photos.every(photo => photo.perceptualHash)
+        const photoPerceptualHash = photos.length > 0 && photos.every(photo => photo.perceptualHash)
           ? photos.map(photo => photo.perceptualHash).join(":")
           : undefined
         if (photoPerceptualHash) {
@@ -142,19 +179,20 @@ export default defineAgent({
           return { ...photo, photoPath }
         }))
         const [storedPhoto] = storedPhotos
-        if (!storedPhoto) throw new Error("The Calories Agent requires at least one stored photo.")
+        const createdAt = analysis.consumedAt ? new Date(analysis.consumedAt) : timestamp
 
         const meal = {
           analyzedAt: timestamp,
           assumptions: analysis.assumptions,
+          caption,
           confidence: analysis.confidence,
-          costUsd: Number.isFinite(costUsd) ? costUsd / batches.length : 0,
+          costUsd: costUsd === undefined ? 0 : costUsd / batches.length,
           id,
           items: analysis.items,
           model,
-          photoBytes: storedPhoto.bytes.byteLength,
-          photoContentType: storedPhoto.contentType,
-          photoPath: storedPhoto.photoPath,
+          photoBytes: storedPhoto?.bytes.byteLength,
+          photoContentType: storedPhoto?.contentType,
+          photoPath: storedPhoto?.photoPath,
           photoPerceptualHash,
           rawOutput: {
             ...analysis,
@@ -163,13 +201,15 @@ export default defineAgent({
               contentType,
               path: photoPath,
             })),
+            usage: usageRecord,
           },
           status: "ready" as const,
           telegramChatId: chatId,
           telegramMessageId: messageId,
-          telegramPhotoFileId: storedPhoto.image.fetchMetadata?.fileId,
+          telegramPhotoFileId: storedPhoto?.image.fetchMetadata?.fileId,
           telegramPhotoUniqueId: telegramPhotoIdentity,
           totalCalories: analysis.totalCalories,
+          createdAt,
           updatedAt: timestamp,
         }
         if (!identity) {
@@ -197,19 +237,21 @@ export default defineAgent({
       }))
       const rows = persisted.map(result => result.meal)
 
-      const startOfTodayUtc = new Date(timestamp)
-      startOfTodayUtc.setUTCHours(0, 0, 0, 0)
+      const timeZone = getUserTimeZone()
+      const todayKey = getLocalDateKey(timestamp, timeZone)
       const readyMeals = await database.select({
+        createdAt: schema.meals.createdAt,
         totalCalories: schema.meals.totalCalories,
       })
         .from(schema.meals)
         .where(and(
           eq(schema.meals.status, "ready"),
           eq(schema.meals.telegramChatId, chatId),
-          gte(schema.meals.createdAt, startOfTodayUtc),
         ))
       const todayCalories = readyMeals.reduce(
-        (total, meal) => total + (meal.totalCalories ?? 0),
+        (total, meal) => getLocalDateKey(meal.createdAt, timeZone) === todayKey
+          ? total + (meal.totalCalories ?? 0)
+          : total,
         0,
       )
 
@@ -230,6 +272,7 @@ export default defineAgent({
             .flatMap(meal => meal.items)
             .map(item => `- ${item.name}, ${item.portion}: ${item.calories.toLocaleString("en-US")} kcal`)
             .join("\n"),
+          cost,
           todayCalories: todayCalories.toLocaleString("en-US"),
           totalCalories: rows
             .reduce((total, meal) => total + (meal.totalCalories ?? 0), 0)

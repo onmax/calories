@@ -12,7 +12,7 @@ export const meals = sqliteTable("meals", {
   telegramPhotoUniqueId: text("telegram_photo_unique_id"),
   photoPerceptualHash: text("photo_perceptual_hash"),
   caption: text("caption"),
-  photoPath: text("photo_path").notNull(),
+  photoPath: text("photo_path"),
   photoContentType: text("photo_content_type"),
   photoBytes: integer("photo_bytes"),
   status: text("status", { enum: ["received", "processing", "ready", "failed"] }).default("received").notNull(),

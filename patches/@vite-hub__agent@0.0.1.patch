@@ -1,157 +1,176 @@
-diff --git a/dist/routes-BhZC29Lp.js b/dist/routes-BhZC29Lp.js
-index 71817bef321cc58ff86db1c57c5327405f80248c..822ec06676bb07942c43368bc9e0e3554b1c3d23 100644
---- a/dist/routes-BhZC29Lp.js
-+++ b/dist/routes-BhZC29Lp.js
-@@ -959 +959,2 @@ function createChatSdkConfig(adapterName, adapter, state, options) {
- function createChatSdkConfig(adapterName, adapter, state, options) {
-+	const concurrency = chatSdkOption(options, "concurrency");
-@@ -964 +965 @@ function createChatSdkConfig(adapterName, adapter, state, options) {
--		concurrency: chatSdkOption(options, "concurrency"),
-+		concurrency: concurrency === "parallel" ? "concurrent" : concurrency,
-@@ -1342,6 +1342,22 @@ async function postChatMessage(thread, message) {
- 		attachments: [...Array.isArray(postable.attachments) ? postable.attachments : [], ...attachments]
- 	});
+diff --git a/dist/capabilities.d.ts b/dist/capabilities.d.ts
+index 241e1dc6225fc4279a7b89caf12d6a5fb120e9ae..c9584b38e6e4f8a9c24776ce4b8df704eeca2f70 100644
+--- a/dist/capabilities.d.ts
++++ b/dist/capabilities.d.ts
+@@ -997,5 +997,11 @@ type WebReadToolDefinition = AgentToolDefinition<WebReadToolInput, WebReadResult
+ //#endregion
+ //#region src/capabilities/web-search/index.d.ts
+ declare function webSearch(options: WebSearchOptions): AgentCapabilityDefinition;
++export {
++  usage,
++  vercelAiGatewayPricing,
++  type AgentUsagePricing,
++  type UsageCapabilityOptions,
++} from "./usage.js";
+ //#endregion
+ export { type AccessCapabilityOptions, type AccessChatContext, type AccessChatOptions, type AccessChatResolver, type AccessDecision, type AccessInvocationContextValue, type AccessRoleName, type AccessWorkspaceOptions, type AccessWorkspaceOptionsFor, type AccessWorkspaceResolverContext, type AccessWorkspaceScopeContext, type AccessWorkspaceScopeDefinition, type AccessWorkspaceScopeGrant, type AccessWorkspaceScopeResolver, type AccessWorkspaceScopeSelection, type AccessWorkspaceScopeSelectionInput, type AccessWorkspaceSourceName, type AgentChannelContext, type AgentChannelWebhookRegistrationDefinition, type AgentChatAgentBindingOptions, type AgentChatAgentHookArgs, type AgentChatCapabilityOptions, type AgentChatCapabilityOrigin, type AgentChatContext, type AgentChatErrorHookArgs, type AgentChatEventHookArgs, type AgentChatEventHooks, type AgentChatFinishExtension, type AgentChatMessage, type AgentChatMessageHookArgs, type AgentChatMessageTriggerInput, type AgentChatOptions, type AgentChatOptionsOrigin, type AgentChatPlatformAdapter, type AgentChatPlatformResolver, type AgentChatPlatformsResolver, type AgentChatRunContext, type AgentChatSendMessage, type AgentChatSessionOptions, type AgentChatStateContext, type AgentChatStateResolver, type AgentChatTriggerHistory, type AgentScheduleCapabilityMetadata, type AgentScheduleCapabilityOptions, type AgentScheduleEntry, type AsyncRecord, type BlobCapabilityOptions, type BrowserCapabilityOptions, type ChatSummaryCommandOptions, type ChatSummaryExecuteInput, type ChatSummaryExecuteResult, type ChatSummaryOptions, type CreateTranscriptionOptions, type DBCapabilityOptions, type ElevenLabsScribeOptions, type EmailCapabilityOptions, type EmailCapabilityToolPolicy, type FetchCapabilityMethod, type FetchCapabilityOptions, type FetchCapabilityRequestDefinition, type FetchCapabilityRequestOptions, type FetchCapabilityResponseType, type FetchCapabilityStandardSchemaV1, type FetchCapabilityToolOptions, type FetchCapabilityToolRequest, type GitCapabilityOptions, type GitCapabilityToolPolicy, type InputCommand, type InputCommandAgentFinishHookContext, type InputCommandAgentInputHookContext, type InputCommandCall, type InputCommandDeliveryMessage, type InputCommandHooks, type InputCommandResult, type InputCommandRunInput, type InputCommandsOptions, type JsonObject, type JsonPrimitive, type JsonValue, type KVCapabilityOptions, type LlmDecisionChoiceDefinition, type LlmDecisionChoiceMap, type LlmGateDecision, type LlmGateOptions, type LlmRouteDecision, type LlmRouteOptions, type McpCapabilityOptions, type McpClient, type McpClientConfig, type McpServerConfig, type McpToolFingerprints, type MemoryAppendRequest, type MemoryCapabilityOptions, type MemoryDeleteRequest, type MemoryExportRequest, type MemoryKind, type MemoryProvenance, type MemoryReadRequest, type MemoryRecord, type MemoryScope, type MemorySearchRequest, type MemorySearchResult, type MemoryStoreAdapter, type MemoryStoreFactory, type MemoryStoreOptions, type OpenAPICapabilityOptions, type OpenAPICliOptions, type OpenAPIHookProvidedInput, type OpenAPIHooks, type OpenAPIRequestContext, type OpenAPIRequestDraft, type OpenAPIRequestHook, type OpenAPIRequestHookOptions, type OpenAPIRequestPatch, type OpenAPIResponseContext, type Papercut, type PapercutReportContext, type PapercutReportEvent, type PapercutSource, type PapercutsOptions, type ProgressSummaryExecuteInput, type ProgressSummaryExecuteResult, type ProgressSummaryOptions, type ProgressSummarySnapshot, type ProgressSummaryTemplate, type ProgressSummaryTemplateInput, type ProgressSummaryTemplateVariable, type PullRequestContextComment, type PullRequestContextFile, type PullRequestContextMetadata, type PullRequestContextRef, type PullRequestContextUser, type PullRequestContextValue, type RateLimitDecision, type RateLimitEvent, type RateLimitIdentity, type RateLimitIdentityResolver, type RateLimitLimiter, type RateLimitLimiterResolver, type RateLimitOptions, type RepositoryHostClient, type RepositoryHostContextCapabilityFactory, type RepositoryHostContextInput, type RepositoryHostContextOptions, type RepositoryHostContextResolver, type RepositoryHostContextTarget, type RepositoryHostContextTargetResolver, type RepositoryHostContextTargetValue, type RepositoryHostContextValue, type RepositoryHostIssueContext, type RepositoryHostOptions, type RepositoryHostProvider, type RepositoryHostReadOperation, type RepositoryHostReadRequest, type RepositoryHostTarget, type RepositoryHostTargetKind, type RepositoryHostToolPolicy, type RepositoryHostWriteOperation, type RepositoryHostWriteRequest, type RuntimeScheduleCapabilityMetadata, type RuntimeScheduleCapabilityOptions, type ScheduleCapabilityToolPolicy, type SkillsCapabilityOptions, type StorageToolPolicy, type StreamTranscriptionOptions, type StreamingTranscription, type SubagentDefinition, type SubagentToolInput, type SubagentsOptions, type TitleExecuteInput, type TitleExecuteResult, type TitleOptions, type TitleTemplate, type TitleTemplateInput, type TitleTemplateVariable, type TranscribeArtifactTemplateInput, type TranscribeArtifactsOptions, type TranscribeAudioArtifactOptions, type TranscribeExecuteInput, type TranscribeExecuteResult, type TranscribeOptions, type TranscribeTranscriptArtifactOptions, type TranscriptionClient, type TranscriptionCompletion, type TranscriptionDriver, type TranscriptionDriverCompletion, type TranscriptionDriverSubmission, type TranscriptionErrorCode, type TranscriptionErrorDetails, type TranscriptionFailedCompletion, type TranscriptionMetadata, type TranscriptionResult, type TranscriptionSource, type TranscriptionSubmission, type TranscriptionSubmitInput, type TranscriptionTranscript, type TranscriptionWord, type WebReadResult, type WebReadToolDefinition, type WebReadToolInput, type WebSearchModelModeOptions, type WebSearchOptions, type WebSearchProvider, type WebSearchProviderInput, type WebSearchProviderOptions, type WebSearchResult, type WebSearchToolDefinition, type WebSearchToolInput, type WebSearchToolModeOptions, type WorkspaceJsonlMemoryStoreOptions, type WorkspaceShellOptions, access, agentChatContextKey, agentScheduleIdFromCron, audioBytes, blob, browser, chat, chatSummary, createTranscription, db, elevenLabsScribe, email, fetch, getAgentChatContext, getTranscriptionResults, git, inputCommands, kv, llmGate, llmRoute, mcp, memory, openapi, papercuts, progressSummary, rateLimit, repositoryHost, repositoryHostContext, sandbox, schedule, skills, streamTranscription, subagents, title, transcribe, webSearch, workspaceJsonlMemoryStore, workspaceShell };
+diff --git a/dist/capabilities.js b/dist/capabilities.js
+index 6c87764879491e883ed69be6203d47f955a8b15e..d28c7fb503c46af96d85d8247d50eb28422b76da 100644
+--- a/dist/capabilities.js
++++ b/dist/capabilities.js
+@@ -2,7 +2,7 @@ import { appendMessageText, getMessageText, validateMessage } from "./messages.j
+ import { c as isAsyncIterable$1, d as withAsyncIterator, i as publishWorkspaceArtifacts, s as cloneWithPropertyDescriptors, u as toReadableAsyncIterableStream } from "./delivery-artifacts-BOKCLStf.js";
+ import { t as loadAiSdk } from "./ai-sdk-runtime-DSI5i7Mj.js";
+ import { $ as markAuxiliaryMessageChannelInstructionContext, F as workspaceCommandTools, G as claimMessageChannelTitleDelivery, H as markTrustedWorkspaceSourceResolutionDefinition, I as defineInternalTool, L as requirePrimitive, N as normalizeWorkspaceCommandTimeout, P as validateWorkspaceCommands, R as executeHttpRequest, U as workspaceOverrideSymbol, V as markTrustedWorkspaceAccessScope, Y as finishMessageChannelTitleDelivery, c as defineCapability, d as normalizeMode, i as capabilityWorkspaceSources, it as resetMessageChannelTitleDelivery, j as agentInvocationSourceContext, k as withResolvedAgentInvokerInput, l as globalSkillsSymbol, q as createMessageChannelTitleEffectIntent, r as capabilityInvocationStartSymbol, tt as messageChannelStateContextKey, v as workspaceMaterializationPathsSymbol, z as parseStandardSchema } from "./capability-runtime-Bw0fKuhd.js";
+-import { a as streamAgentOutputToEvents, f as responseTitleFallbackContextKey, o as toAgentRunResult, s as toAgentStreamEvent } from "./agent-output-CyEZfgrQ.js";
++import { a as streamAgentOutputToEvents, f as responseTitleFallbackContextKey, i as resolveAgentUsageRecord, o as toAgentRunResult, s as toAgentStreamEvent } from "./agent-output-CyEZfgrQ.js";
+ import { A as getAgentChatContext, C as selectStore, E as agentChatContextKey, O as chat, S as requirePrimitive$1, _ as repositoryHostContext, b as jsonObjectSchema$1, s as messageChannelTitleSupportContextKey, v as assertString, w as storageValue, x as method, y as createTool$2 } from "./channels-Dau_Qdvc.js";
+ import { n as resolveNormalizedHarnessDriver, t as normalizeAgentDriver } from "./agent-driver-ktEa_Dj0.js";
+ import { n as toAgentUiMessageStreamResponse } from "./http-response-BHcgRXcy.js";
+@@ -6467,4 +6467,107 @@ function webSearch(options) {
+ 	throw new TypeError("[vitehub] webSearch() mode must be \"tool\" or \"model\".");
  }
-+async function replaceChatMessage(sent, message) {
-+	if (!sent || typeof sent !== "object" || !("edit" in sent) || typeof sent.edit !== "function") return false;
-+	if (isAsyncIterable(message)) {
-+		let markdown = "";
-+		for await (const chunk of message) markdown += chunk;
-+		await sent.edit({ markdown });
-+		return true;
-+	}
-+	if (typeof message !== "object" || message === null) {
-+		await sent.edit(message);
-+		return true;
-+	}
-+	if (deliveryArtifactAttachments(chatMessageDeliveryArtifacts(message)).length) return false;
-+	await sent.edit(isTextChatMessage(message) ? message.text : message);
-+	return true;
+ //#endregion
+-export { access, agentChatContextKey, agentScheduleIdFromCron, audioBytes, blob, browser, chat, chatSummary, createTranscription, db, elevenLabsScribe, email, fetch$1 as fetch, getAgentChatContext, getTranscriptionResults, git, inputCommands, kv, llmGate, llmRoute, mcp, memory, openapi, papercuts, progressSummary, rateLimit, repositoryHost, repositoryHostContext, sandbox, schedule, skills, streamTranscription, subagents, title, transcribe, webSearch, workspaceJsonlMemoryStore, workspaceShell };
++//#region src/capabilities/usage.ts
++const defaultUsageModelsUrl = "https://ai-gateway.vercel.sh/v1/models";
++function usageDecimalParts(value) {
++	const trimmed = value.trim();
++	if (!/^\d+(?:\.\d+)?$/.test(trimmed)) throw new TypeError(`[vitehub] Invalid usage price "${value}".`);
++	const [whole, fraction = ""] = trimmed.split(".");
++	return {
++		scale: 10n ** BigInt(fraction.length),
++		units: BigInt(`${whole}${fraction}`)
++	};
 +}
- async function resolveChatErrorFallbackText(options, args) {
- 	const fallback = options?.errorFallbackText;
- 	if (fallback === null) return void 0;
-@@ -1351,7 +1367,7 @@ async function resolveChatErrorFallbackText(options, args) {
- 	if (publicError.code === "RATE_LIMIT_REJECTED") return publicError.error;
- 	return defaultChatErrorFallbackText;
- }
--async function postChatErrorFallback(error, thread, message, options, input, run) {
-+async function postChatErrorFallback(error, thread, message, options, input, run, replyTarget) {
- 	console.error({
- 		component: "@vite-hub/agent",
- 		error: serializeErrorForLog(error),
-@@ -1360,7 +1376,12 @@ async function postChatErrorFallback(error, thread, message, options, input, run
- 		thread_id: message.threadId
- 	});
- 	const fallback = await resolveChatErrorFallbackText(options, chatErrorHookArgs(thread, message, input, run, error));
--	if (fallback) await thread.post(fallback).catch(() => void 0);
-+	if (!fallback) return;
-+	if (replyTarget) {
-+		if (await replaceChatMessage(replyTarget, fallback).catch(() => false)) return;
-+		await replyTarget.delete?.().catch(() => void 0);
-+	}
-+	await thread.post(fallback).catch(() => void 0);
- }
- function createChatFinishExtension(input, registration) {
- 	const messages = [];
-@@ -1373,9 +1394,20 @@ function createChatFinishExtension(input, registration) {
- 		}
- 	};
- }
--async function flushChatFinishExtensionMessages(thread, chat) {
-+async function flushChatFinishExtensionMessages(thread, chat, replyTarget) {
- 	const messages = chat[chatFinishMessagesKey].splice(0);
--	for (const message of messages) await postChatMessage(thread, message);
-+	for (const message of messages) {
-+		if (replyTarget) {
-+			if (await replaceChatMessage(replyTarget, message).catch(() => false)) {
-+				replyTarget = void 0;
-+				continue;
++function addUsageDecimals(items) {
++	if (!items.length) return "0";
++	const scale = items.reduce((maximum, item) => item.scale > maximum ? item.scale : maximum, 1n);
++	const units = items.reduce((total, item) => total + item.units * (scale / item.scale), 0n);
++	const whole = units / scale;
++	const fraction = (units % scale).toString().padStart(scale.toString().length - 1, "0").replace(/0+$/, "");
++	return fraction ? `${whole}.${fraction}` : whole.toString();
++}
++function multiplyUsagePrice(price, tokens) {
++	if (price === void 0 || tokens === void 0 || tokens <= 0) return;
++	const value = usageDecimalParts(price);
++	return {
++		scale: value.scale,
++		units: value.units * BigInt(Math.trunc(tokens))
++	};
++}
++function normalizeUsagePrice(value) {
++	return typeof value === "string" && value ? value : void 0;
++}
++function pricedUsageTokens(usageRecord, price) {
++	const details = usageRecord.inputTokenDetails || {};
++	const cacheReadTokens = details.cacheReadTokens || details.cachedTokens || 0;
++	const cacheWriteTokens = details.cacheWriteTokens || 0;
++	const regularInputTokens = Math.max(0, (usageRecord.inputTokens || 0) - cacheReadTokens - cacheWriteTokens);
++	return addUsageDecimals([
++		multiplyUsagePrice(price.input, regularInputTokens),
++		multiplyUsagePrice(price.inputCacheRead || price.input, cacheReadTokens),
++		multiplyUsagePrice(price.inputCacheWrite || price.input, cacheWriteTokens),
++		multiplyUsagePrice(price.output, usageRecord.outputTokens)
++	].filter(Boolean));
++}
++function vercelAiGatewayPricing(options = {}) {
++	const fetcher = options.fetch || globalThis.fetch;
++	const modelsUrl = options.modelsUrl || defaultUsageModelsUrl;
++	let prices;
++	const loadPrices = async () => {
++		prices ??= (async () => {
++			const response = await fetcher(modelsUrl);
++			if (!response.ok) throw new Error(`[vitehub] Vercel AI Gateway pricing request failed with ${response.status}.`);
++			const body = await response.json();
++			const result = {};
++			for (const model of body.data || []) {
++				if (typeof model.id !== "string" || !model.pricing) continue;
++				result[model.id] = {
++					input: normalizeUsagePrice(model.pricing.input),
++					inputCacheRead: normalizeUsagePrice(model.pricing.input_cache_read),
++					inputCacheWrite: normalizeUsagePrice(model.pricing.input_cache_write),
++					output: normalizeUsagePrice(model.pricing.output)
++				};
 +			}
-+			await replyTarget.delete?.().catch(() => void 0);
-+			replyTarget = void 0;
++			return result;
++		})();
++		return await prices;
++	};
++	return async ({ model, usage: usageRecord }) => {
++		if (!model?.id || !usageRecord) return;
++		const price = (await loadPrices())[model.id];
++		if (!price) return;
++		return {
++			amount: pricedUsageTokens(usageRecord, price),
++			currency: "USD",
++			estimated: true,
++			source: "vercel-ai-gateway"
++		};
++	};
++}
++function usage(options = {}) {
++	const pricing = options.pricing || vercelAiGatewayPricing(options);
++	return defineCapability({
++		id: "usage",
++		metadata: { kind: "usage" },
++		async finish(event) {
++			const record = event.invocation.usage ?? await resolveAgentUsageRecord(event.result, event.invocation.run);
++			if (!record || record.cost || !record.usage) return record;
++			try {
++				const cost = await pricing({
++					model: record.model,
++					response: record.response,
++					run: event.invocation.run,
++					usage: record.usage
++				});
++				return cost ? {
++					...record,
++					cost
++				} : record;
++			} catch {
++				return record;
++			}
 +		}
-+		await postChatMessage(thread, message);
-+	}
-+	return replyTarget;
- }
- function withChatFinishExtension(input, chat) {
- 	return {
-@@ -1407,8 +1439,10 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
- 	let input;
- 	let run;
- 	let typing;
-+	let replyTarget;
- 	try {
- 		input = createChatTriggerInput(chatRegistrationOrigin(registration), thread, message, [chatAuthorizationUiMessage(thread, message, messageContext)], messageContext, registration.channelId);
-+		if (typeof options?.timeout === "number" && Number.isFinite(options.timeout) && options.timeout > 0) input.timeout = options.timeout;
- 		const authorizationInput = createChatMessageTriggerInput(options || {}, input).input;
- 		const invoker = await isChatMessageAuthorized(agent, context, registration, thread, message, authorizationInput, input.run, messageContext);
- 		if (!invoker) return;
-@@ -1431,7 +1465,11 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
- 		};
- 		const invocation = await resolveAgentTriggerInvocation(agent, context, "chat.message", input);
- 		if (isResolvedAgentTriggerHandledInvocation(invocation)) return;
--		const streamsPhasedReplies = options?.stream !== false || options?.commentary !== void 0;
-+		const manualDelivery = options?.delivery === "manual";
-+		if (manualDelivery && (options?.stream === true || options?.commentary !== void 0)) throw new TypeError("[vitehub] messages.delivery \"manual\" cannot be combined with streaming or commentary delivery.");
-+		const streamsPhasedReplies = !manualDelivery && (options?.stream !== false || options?.commentary !== void 0);
-+		const thinkingFallback = invocation.metadata?.thinkingFallback;
-+		if (manualDelivery && typeof thinkingFallback === "string") replyTarget = await thread.post(thinkingFallback);
- 		typing = streamsPhasedReplies ? startChatTypingRefresh(thread, context) : void 0;
- 		run = invocation.run;
- 		const runContext = {
-@@ -1449,13 +1487,14 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
- 		}, invoker), chatFinish);
- 		if (!streamsPhasedReplies) {
- 			const text = await collectAgentOutput(await runAgentInline(agent, runContext, invocationInput));
--			if (text) {
-+			if (!manualDelivery && text) {
- 				if (!await postDiscordSplitContent(thread, { markdown: text })) await thread.post({ markdown: text });
- 			}
--			await flushChatFinishExtensionMessages(thread, chatFinish);
-+			replyTarget = await flushChatFinishExtensionMessages(thread, chatFinish, replyTarget);
-+			await replyTarget?.delete?.().catch(() => void 0);
-+			replyTarget = void 0;
- 		} else {
- 			const result = streamAgent(agent, runContext, invocationInput, { output: "events" });
--			const thinkingFallback = invocation.metadata?.thinkingFallback;
- 			try {
- 				if (options?.stream === true || options?.commentary === void 0) await postChatStream(thread, streamAgentOutputToChatText(result), typeof thinkingFallback === "string" || thinkingFallback === null ? thinkingFallback : void 0, context.waitUntil);
- 				else {
-@@ -1488,7 +1527,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
- 		}
- 	} catch (error) {
- 		typing?.stop();
--		await postChatErrorFallback(error, thread, message, options, input, run);
-+		await postChatErrorFallback(error, thread, message, options, input, run, replyTarget);
- 		throw error;
- 	} finally {
- 		typing?.stop();
-diff --git a/dist/types-Dj4Xu2_S.d.ts b/dist/types-Dj4Xu2_S.d.ts
-index 0bfc07ca2cc6771d6230ea3be02fcd723e2fcf8b..8e4a9e83a63ead42cdb7672a44cd2cbcc8c2fe4a 100644
---- a/dist/types-Dj4Xu2_S.d.ts
-+++ b/dist/types-Dj4Xu2_S.d.ts
-@@ -1205,6 +1205,7 @@ interface AgentMessageChannelSettings<TRuntimeConfig extends AgentRuntimeConfig
-   commentary?: "hidden" | "message";
-   concurrency?: AgentMessageConcurrency;
-   dedupeTtlMs?: number;
-+  delivery?: "automatic" | "manual";
-   errorFallbackText?: string | null | ((context: AgentChatErrorHookArgs<TRuntimeConfig>) => MaybePromise<string | null | undefined>);
-   fallbackStreamingPlaceholderText?: string | readonly string[] | null | ((context: AgentChatAgentHookArgs<TRuntimeConfig>) => MaybePromise<string | null | undefined>);
-   filter?: AgentMessageFilter<TRuntimeConfig>;
-@@ -1216,6 +1217,7 @@ interface AgentMessageChannelSettings<TRuntimeConfig extends AgentRuntimeConfig
-   stream?: boolean;
-   streamingUpdateIntervalMs?: number;
-   threadHistory?: unknown;
-+  timeout?: number;
-   transcripts?: TranscriptsConfig;
-   triggerHistory?: AgentChatTriggerHistory;
-   userName?: string;
-diff --git a/dist/vite.js b/dist/vite.js
-index 1a68c583135fe4a170fdcdaa328efe9fd151f97e..dd010f236cf5c8a861f8414fb84e33853b4d6b6f 100644
---- a/dist/vite.js
-+++ b/dist/vite.js
-@@ -2546 +2546 @@ function generatedLibsqlChatStateHelper(state) {
--		"let viteHubChatState",
-+		"let viteHubChatState: ReturnType<typeof createLibsqlAgentState> | undefined",
++	});
++}
++//#endregion
++export { access, agentChatContextKey, agentScheduleIdFromCron, audioBytes, blob, browser, chat, chatSummary, createTranscription, db, elevenLabsScribe, email, fetch$1 as fetch, getAgentChatContext, getTranscriptionResults, git, inputCommands, kv, llmGate, llmRoute, mcp, memory, openapi, papercuts, progressSummary, rateLimit, repositoryHost, repositoryHostContext, sandbox, schedule, skills, streamTranscription, subagents, title, transcribe, usage, vercelAiGatewayPricing, webSearch, workspaceJsonlMemoryStore, workspaceShell };
+diff --git a/dist/usage.d.ts b/dist/usage.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..b22267781453a3fb666de529b40ec8519f588cc7
+--- /dev/null
++++ b/dist/usage.d.ts
+@@ -0,0 +1,32 @@
++import type {
++  AgentCapabilityDefinition,
++  AgentRunMetadata,
++  AgentUsage,
++  AgentUsageCost,
++  AgentUsageRecord,
++  MaybePromise,
++} from "./index.js";
++
++export type AgentUsagePricing = (context: {
++  model?: AgentUsageRecord["model"];
++  response?: AgentUsageRecord["response"];
++  run?: Partial<AgentRunMetadata>;
++  usage: AgentUsage;
++}) => MaybePromise<AgentUsageCost | undefined>;
++
++export interface UsageCapabilityOptions {
++  fetch?: typeof fetch;
++  modelsUrl?: string;
++  pricing?: AgentUsagePricing;
++}
++
++declare global {
++  interface ViteHubAgentFinishExtensions {
++    usage: AgentUsageRecord;
++  }
++}
++
++export declare function usage(options?: UsageCapabilityOptions): AgentCapabilityDefinition;
++export declare function vercelAiGatewayPricing(
++  options?: Pick<UsageCapabilityOptions, "fetch" | "modelsUrl">,
++): AgentUsagePricing;

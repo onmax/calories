@@ -22,7 +22,7 @@ const mealSelection = {
 type MealRow = Pick<typeof schema.meals.$inferSelect, keyof typeof mealSelection>
 
 export interface MealRecord extends Omit<MealRow, "photoContentType" | "photoPath"> {
-  photo: {
+  photo?: {
     key: string
     mediaType?: string
   }
@@ -38,10 +38,14 @@ function toSourceItem(meal: MealRow) {
   return {
     data: {
       ...data,
-      photo: {
-        key: photoPath,
-        ...(photoContentType ? { mediaType: photoContentType } : {}),
-      },
+      ...(photoPath
+        ? {
+            photo: {
+              key: photoPath,
+              ...(photoContentType ? { mediaType: photoContentType } : {}),
+            },
+          }
+        : {}),
     },
     key: meal.id,
     metadata: {

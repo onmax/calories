@@ -1,67 +1,92 @@
 <script setup lang="ts">
-import type { Meal } from "~/utils/meal"
-import { formatUsd } from "~/utils/usage"
+import { formatMealTime, getMealPhotoUrl, getMealTitle, type Meal } from "~/utils/meal"
 
-defineProps<{ meal?: Meal }>()
+const props = defineProps<{
+  dayCalories: number
+  dayMealCount: number
+  meal?: Meal
+  meals: Meal[]
+  proteinGoal: number
+  selectedId?: string
+}>()
+const emit = defineEmits<{ select: [id: string] }>()
+const visibleItems = computed(() => props.meal?.items.slice(0, 6) ?? [])
+const hiddenItemCount = computed(() => Math.max(0, (props.meal?.items.length ?? 0) - visibleItems.value.length))
+const photoMeals = computed(() => props.meals.filter(meal => getMealPhotoUrl(meal)))
 </script>
 
 <template>
   <aside class="analysis-panel">
-    <div class="analysis-scroll">
-      <template v-if="meal">
+    <div v-if="meal" :key="meal.id" class="analysis-scroll">
+      <div v-if="photoMeals.length" class="meal-carousel" aria-label="Meal photos from this day">
+        <button
+          v-for="dayMeal in photoMeals"
+          :key="dayMeal.id"
+          type="button"
+          :aria-label="getMealTitle(dayMeal)"
+          :aria-pressed="dayMeal.id === selectedId"
+          @click="emit('select', dayMeal.id)"
+        >
+          <img :src="getMealPhotoUrl(dayMeal)" alt="">
+        </button>
+      </div>
+
+      <section class="meal-summary">
         <header class="analysis-heading">
-          <div><p class="panel-kicker"><UIcon name="i-lucide-scan-eye" /> AI estimate</p><h2>Inside this plate</h2></div>
-          <span v-if="meal.confidence" class="confidence-indicator" :data-confidence="meal.confidence">
-            <span class="confidence-bars" aria-hidden="true"><i /><i /><i /></span>
-            <span>{{ meal.confidence }} confidence</span>
-          </span>
+          <div class="analysis-meta">
+            <span class="meal-time">{{ formatMealTime(meal.createdAt) }}</span>
+            <span v-if="meal.confidence" class="confidence-indicator" :data-confidence="meal.confidence">
+              <span class="confidence-dot" />
+              {{ meal.confidence }}
+            </span>
+          </div>
+          <h2>{{ getMealTitle(meal) }}</h2>
         </header>
 
-        <p v-if="meal.caption" class="meal-caption">“{{ meal.caption }}”</p>
+        <section v-if="meal.status === 'ready'" class="estimate-total">
+          <strong class="tabular-nums">{{ meal.totalCalories?.toLocaleString() }}</strong>
+          <span>kcal</span>
+        </section>
+      </section>
 
-        <template v-if="meal.status === 'ready'">
-          <section class="estimate-total">
-            <p>Estimated energy</p>
-            <div><strong class="tabular-nums">{{ meal.totalCalories?.toLocaleString() }}</strong><span>kilocalories</span></div>
-          </section>
-
-          <section class="breakdown-section">
-            <div class="panel-section-heading"><h3>Detected items</h3><span>{{ meal.items.length }} total</span></div>
-            <div class="food-list">
-              <article v-for="item in meal.items" :key="`${item.name}-${item.portion}`" class="food-row">
-                <div class="food-row-heading"><div><h4>{{ item.name }}</h4><p>{{ item.portion }}</p></div><strong class="tabular-nums">{{ item.calories }} <span>kcal</span></strong></div>
-                <span class="food-bar"><span :style="{ '--food-share': `${Math.max(4, Math.round(item.calories / Math.max(meal.totalCalories ?? 1, 1) * 100))}%` }" /></span>
-              </article>
-            </div>
-          </section>
-
-          <section v-if="meal.assumptions.length" class="assumption-box">
-            <div class="panel-section-heading"><h3>Notes and assumptions</h3><UIcon name="i-lucide-info" /></div>
-            <ul role="list"><li v-for="assumption in meal.assumptions" :key="assumption">{{ assumption }}</li></ul>
-          </section>
-
-          <section class="analysis-cost">
-            <div class="panel-section-heading"><h3>Analysis cost</h3></div>
-            <dl class="cost-breakdown"><div class="cost-total"><dt>Gateway total</dt><dd><strong class="tabular-nums">{{ formatUsd(meal.costUsd) }}</strong></dd></div></dl>
-          </section>
-        </template>
-
-        <section v-else-if="meal.status === 'failed'" class="analysis-state failed-state">
-          <UIcon name="i-lucide-circle-alert" />
-          <div><h3>Analysis failed</h3><p>{{ meal.error || "Send this photo again in Telegram." }}</p></div>
+      <template v-if="meal.status === 'ready'">
+        <section class="breakdown-section">
+          <div class="panel-section-heading">
+            <h3>What’s on the plate</h3>
+            <span v-if="hiddenItemCount">+{{ hiddenItemCount }} more</span>
+          </div>
+          <div class="food-list">
+            <article v-for="item in visibleItems" :key="`${item.name}-${item.portion}`" class="food-row">
+              <div>
+                <h4>{{ item.name }}</h4>
+                <p>{{ item.portion }}</p>
+              </div>
+              <strong class="tabular-nums">{{ item.calories }} <span>kcal</span></strong>
+            </article>
+          </div>
         </section>
 
-        <section v-else class="analysis-state">
-          <UIcon name="i-lucide-loader-circle" class="spinning" />
-          <div><h3>Reading the plate</h3><p>This view refreshes automatically while the estimate is in progress.</p></div>
-        </section>
+        <footer class="day-context">
+          <span>Day</span>
+          <strong class="tabular-nums">{{ dayCalories.toLocaleString() }} kcal</strong>
+          <span>{{ dayMealCount }} {{ dayMealCount === 1 ? "meal" : "meals" }} · {{ proteinGoal }} g protein goal</span>
+        </footer>
       </template>
 
-      <div v-else class="analysis-empty">
-        <span><UIcon name="i-lucide-image" /></span>
-        <h2>No meal selected</h2>
-        <p>Select a photo to see every detected item, its calorie estimate, and the model’s assumptions.</p>
-      </div>
+      <section v-else-if="meal.status === 'failed'" class="analysis-state failed-state">
+        <UIcon name="i-lucide-circle-alert" />
+        <div><h3>Analysis failed</h3><p>{{ meal.error || "Send the photo again in Telegram." }}</p></div>
+      </section>
+
+      <section v-else class="analysis-state">
+        <UIcon name="i-lucide-loader-circle" class="spinning" />
+        <div><h3>Reading the plate</h3></div>
+      </section>
+    </div>
+
+    <div v-else class="analysis-empty">
+      <UIcon name="i-lucide-image" />
+      <h2>Select a photo</h2>
     </div>
   </aside>
 </template>
