@@ -1,8 +1,124 @@
 diff --git a/dist/index.js b/dist/index.js
-index c4327f7..1874743 100644
+index f1b3a52b613b390a0525574ec4d4e47e1619d323..b35c55692fec8d608040b82d94c27c5d13bc073a 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -2006,7 +2006,9 @@ var TelegramAdapter = class {
+@@ -797,6 +797,10 @@ var TELEGRAM_DEFAULT_POLLING_TIMEOUT_SECONDS = 30;
+ var TELEGRAM_DEFAULT_POLLING_LIMIT = 100;
+ var TELEGRAM_DEFAULT_POLLING_RETRY_DELAY_MS = 1e3;
+ var TELEGRAM_DEFAULT_STREAM_UPDATE_INTERVAL_MS = 250;
++var TELEGRAM_INCOMING_MEDIA_GROUP_BUFFER_TTL_MS = 3e4;
++var TELEGRAM_INCOMING_MEDIA_GROUP_LOCK_TTL_MS = 5e3;
++var TELEGRAM_INCOMING_MEDIA_GROUP_RETRY_MS = 50;
++var TELEGRAM_INCOMING_MEDIA_GROUP_SETTLE_MS = 1e3;
+ var TELEGRAM_MEDIA_GROUP_MIN = 2;
+ var TELEGRAM_MEDIA_GROUP_MAX = 10;
+ var TELEGRAM_MARKDOWN_PARSE_ERROR_PATTERN = /can't parse (?:caption )?entities/i;
+@@ -1157,11 +1161,104 @@ var TelegramAdapter = class {
+       chatId: String(telegramMessage.chat.id),
+       messageThreadId: telegramMessage.message_thread_id
+     });
++    if (telegramMessage.media_group_id) {
++      const task = this.processIncomingMediaGroup(
++        telegramMessage,
++        threadId
++      ).catch((error) => {
++        this.logger.warn("Failed to process incoming Telegram media group", {
++          error: String(error),
++          mediaGroupId: telegramMessage.media_group_id,
++          threadId
++        });
++      });
++      options?.waitUntil?.(task);
++      return;
++    }
+     this.startTypingForPrivateMessage(telegramMessage, threadId, options);
+     const parsedMessage = this.parseTelegramMessage(telegramMessage, threadId);
+     this.cacheMessage(parsedMessage);
+     this.chat.processMessage(this, threadId, parsedMessage, options);
+   }
++  async processIncomingMediaGroup(telegramMessage, threadId) {
++    if (!(this.chat && telegramMessage.media_group_id)) {
++      return;
++    }
++    const state = this.chat.getState();
++    const mediaGroupKey = `${this.name}:incoming-media-group:${threadId}:${telegramMessage.media_group_id}`;
++    const lockKey = `${mediaGroupKey}:lock`;
++    await state.appendToList(
++      mediaGroupKey,
++      {
++        message: telegramMessage,
++        receivedAt: Date.now()
++      },
++      {
++        maxLength: TELEGRAM_MEDIA_GROUP_MAX,
++        ttlMs: TELEGRAM_INCOMING_MEDIA_GROUP_BUFFER_TTL_MS
++      }
++    );
++    await this.sleep(TELEGRAM_INCOMING_MEDIA_GROUP_SETTLE_MS);
++    for (; ; ) {
++      const lock = await state.acquireLock(
++        lockKey,
++        TELEGRAM_INCOMING_MEDIA_GROUP_LOCK_TTL_MS
++      );
++      if (!lock) {
++        await this.sleep(TELEGRAM_INCOMING_MEDIA_GROUP_RETRY_MS);
++        continue;
++      }
++      let entries = [];
++      let remainingSettleMs = 0;
++      try {
++        entries = await state.getList(mediaGroupKey);
++        if (entries.length === 0) {
++          return;
++        }
++        const newestReceivedAt = Math.max(
++          ...entries.map((entry) => entry.receivedAt)
++        );
++        remainingSettleMs = Math.max(
++          0,
++          TELEGRAM_INCOMING_MEDIA_GROUP_SETTLE_MS - (Date.now() - newestReceivedAt)
++        );
++        if (remainingSettleMs === 0) {
++          await state.delete(mediaGroupKey);
++        }
++      } finally {
++        await state.releaseLock(lock);
++      }
++      if (remainingSettleMs > 0) {
++        await this.sleep(remainingSettleMs);
++        continue;
++      }
++      const orderedMessages = entries.map((entry) => entry.message).sort((left, right) => left.message_id - right.message_id);
++      const parsedMessages = orderedMessages.map(
++        (message) => this.parseTelegramMessage(message, threadId)
++      );
++      const latestMessage = parsedMessages.at(-1);
++      if (!latestMessage) {
++        return;
++      }
++      const contentMessage = parsedMessages.find((message) => message.text.length > 0) ?? latestMessage;
++      const combinedMessage = new Message({
++        id: latestMessage.id,
++        threadId,
++        text: contentMessage.text,
++        formatted: contentMessage.formatted,
++        raw: latestMessage.raw,
++        author: latestMessage.author,
++        metadata: latestMessage.metadata,
++        attachments: parsedMessages.flatMap((message) => message.attachments),
++        isMention: parsedMessages.some((message) => message.isMention),
++        links: parsedMessages.flatMap((message) => message.links)
++      });
++      this.startTypingForPrivateMessage(orderedMessages[0], threadId);
++      this.cacheMessage(combinedMessage);
++      await this.chat.processMessage(this, threadId, combinedMessage);
++      return;
++    }
++  }
+   handleSlashCommandUpdate(telegramMessage, options) {
+     if (!this.chat) {
+       return false;
+@@ -2008,7 +2105,9 @@ var TelegramAdapter = class {
          this.createAttachment("image", photo.file_id, {
            size: photo.file_size,
            width: photo.width,
@@ -13,7 +129,7 @@ index c4327f7..1874743 100644
          })
        );
      }
-@@ -2082,7 +2084,10 @@ var TelegramAdapter = class {
+@@ -2081,7 +2180,10 @@ var TelegramAdapter = class {
        height: metadata?.height,
        name: metadata?.name,
        mimeType: metadata?.mimeType,

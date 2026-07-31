@@ -10,7 +10,7 @@ overrides:
 
 patchedDependencies:
   '@chat-adapter/telegram@4.35.0':
-    hash: 41264eb6e28107fdb5497753d99a1eb08f2d1d1ba58af505da16aa8cd0eb9c1c
+    hash: 84547106dd34e843f330c5cbc5fcf6713a67c554f4ec96c1a337c09c01baecf2
     path: patches/@chat-adapter__telegram@4.35.0.patch
   '@vite-hub/agent@0.0.1':
     hash: 4c7bb873a189d89bdd4bcfbcaf4d7321859b529b5488506060600dec18974714
@@ -9354,7 +9354,7 @@ snapshots:
       - workflow
       - zod
 
-  '@chat-adapter/telegram@4.35.0(patch_hash=41264eb6e28107fdb5497753d99a1eb08f2d1d1ba58af505da16aa8cd0eb9c1c)(ai@7.0.19(zod@4.3.5))(workflow@5.0.0-beta.35(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.0)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.3)(react@19.2.8)(typescript@6.0.3)(ws@8.21.1))(zod@4.3.5)':
+  '@chat-adapter/telegram@4.35.0(patch_hash=84547106dd34e843f330c5cbc5fcf6713a67c554f4ec96c1a337c09c01baecf2)(ai@7.0.19(zod@4.3.5))(workflow@5.0.0-beta.35(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.0)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.3)(react@19.2.8)(typescript@6.0.3)(ws@8.21.1))(zod@4.3.5)':
     dependencies:
       '@chat-adapter/shared': 4.35.0(ai@7.0.19(zod@4.3.5))(workflow@5.0.0-beta.35(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.0)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.3)(react@19.2.8)(typescript@6.0.3)(ws@8.21.1))(zod@4.3.5)
       chat: 4.35.0(ai@7.0.19(zod@4.3.5))(workflow@5.0.0-beta.35(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.0)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.3)(react@19.2.8)(typescript@6.0.3)(ws@8.21.1))(zod@4.3.5)
@@ -12217,7 +12217,7 @@ snapshots:
       '@ai-sdk/gateway': 4.0.26(zod@4.3.5)
       '@ai-sdk/harness': 1.0.39(ws@8.21.1)(zod@4.3.5)
       '@ai-sdk/harness-codex': 1.0.41(zod@4.3.5)
-      '@chat-adapter/telegram': 4.35.0(patch_hash=41264eb6e28107fdb5497753d99a1eb08f2d1d1ba58af505da16aa8cd0eb9c1c)(ai@7.0.19(zod@4.3.5))(workflow@5.0.0-beta.35(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.0)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.3)(react@19.2.8)(typescript@6.0.3)(ws@8.21.1))(zod@4.3.5)
+      '@chat-adapter/telegram': 4.35.0(patch_hash=84547106dd34e843f330c5cbc5fcf6713a67c554f4ec96c1a337c09c01baecf2)(ai@7.0.19(zod@4.3.5))(workflow@5.0.0-beta.35(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.0)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.3)(react@19.2.8)(typescript@6.0.3)(ws@8.21.1))(zod@4.3.5)
       '@libsql/client': 0.17.4
       '@standard-schema/spec': 1.1.0
       '@types/json-schema': 7.0.15
