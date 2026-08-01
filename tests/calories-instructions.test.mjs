@@ -81,3 +81,10 @@ test("new photo meals persist their current input attachment", () => {
   assert.match(instructions, /`meals\/RECORD_ID\/original`/)
   assert.match(instructions, /pathname and media type to the meal's photo columns/i)
 })
+
+test("an explicitly reused photo can represent a new consumption", () => {
+  assert.match(instructions, /explicitly says.*new consumption/i)
+  assert.match(instructions, /reuse.*`photo_path`/i)
+  assert.match(instructions, /do not upload.*same blob/i)
+  assert.match(instructions, /not a duplicate/i)
+})
