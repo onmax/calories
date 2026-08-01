@@ -17,6 +17,19 @@ export const mealAnalysisSchema = z.object({
 
 export type MealAnalysis = z.infer<typeof mealAnalysisSchema>
 
+export const mealAnalysisOutputInstructions = [
+  "Return only one valid JSON value for the meal analysis. Do not wrap it in Markdown or add commentary.",
+  "The JSON value must match this schema:",
+  "```json",
+  JSON.stringify(z.toJSONSchema(mealAnalysisSchema, { target: "draft-7" }), null, 2),
+  "```",
+].join("\n")
+
+export function parseMealAnalysisOutput(text: string): MealAnalysis {
+  const value = text.trim().match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i)?.[1]?.trim() ?? text.trim()
+  return mealAnalysisSchema.parse(JSON.parse(value))
+}
+
 export const mealAnalysisOutputSchema = z.array(mealAnalysisSchema).min(1)
 
 export type MealAnalysisOutput = z.infer<typeof mealAnalysisOutputSchema>

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { completeAlbumAnalyses, isolateFirstAlbumImage } from "../server/utils/album-analysis.ts"
-import { caloriesAgentOutputSchema, mealAnalysisSchema } from "../server/utils/meal-analysis.ts"
+import {
+  caloriesAgentOutputSchema,
+  mealAnalysisOutputInstructions,
+  mealAnalysisSchema,
+  parseMealAnalysisOutput,
+} from "../server/utils/meal-analysis.ts"
 
 const meal = {
   assumptions: [],
@@ -25,6 +30,12 @@ test("meal analysis rejects an explicit consumed time without an offset", () => 
 test("meal output always contains an analyses array", () => {
   assert.equal(caloriesAgentOutputSchema.safeParse({ kind: "meal", analyses: meal }).success, false)
   assert.equal(caloriesAgentOutputSchema.safeParse({ kind: "meal", analyses: [meal] }).success, true)
+})
+
+test("a single-photo model response uses the same JSON contract as the agent", () => {
+  assert.match(mealAnalysisOutputInstructions, /"totalCalories"/)
+  assert.deepEqual(parseMealAnalysisOutput(JSON.stringify(meal)), meal)
+  assert.deepEqual(parseMealAnalysisOutput("```json\n" + JSON.stringify(meal) + "\n```"), meal)
 })
 
 test("an album runs one analysis call per image and preserves order", async () => {

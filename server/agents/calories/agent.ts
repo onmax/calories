@@ -1,6 +1,6 @@
 import { and, eq, or } from "drizzle-orm"
 import { useStorage } from "nitro/storage"
-import { createGateway, generateText, Output, type LanguageModelUsage } from "ai-v7"
+import { createGateway, generateText, type LanguageModelUsage } from "ai-v7"
 import { defineAgent, gateway, type AgentUsage, type AgentUsageRecord, type ImagePart, type Message } from "vite-hub/agent"
 import { db, usage, vercelAiGatewayPricing } from "vite-hub/agent/capabilities"
 import { telegram } from "vite-hub/agent/channels"
@@ -10,7 +10,12 @@ import { useServerEnv } from "#vitehub/env/server"
 import database, * as schema from "../../databases/config"
 import { completeAlbumAnalyses, isolateFirstAlbumImage } from "../../utils/album-analysis"
 import { getTelegramPhotoIdentity } from "../../utils/meal-deduplication"
-import { caloriesAgentOutputSchema, mealAnalysisSchema, type CaloriesAgentOutput } from "../../utils/meal-analysis"
+import {
+  caloriesAgentOutputSchema,
+  mealAnalysisOutputInstructions,
+  parseMealAnalysisOutput,
+  type CaloriesAgentOutput,
+} from "../../utils/meal-analysis"
 import { createJpegPerceptualHash } from "../../utils/photo-perceptual-hash"
 
 const model = "zai/glm-5v-turbo"
@@ -170,11 +175,10 @@ export default defineAgent({
               role: "user",
             }],
             model: gatewayModel,
-            output: Output.object({ schema: mealAnalysisSchema }),
-            system: `${singlePhotoInstructions}\n\n${currentTimeInstructions()}`,
+            system: `${singlePhotoInstructions}\n\n${currentTimeInstructions()}\n\n${mealAnalysisOutputInstructions}`,
           })
           additionalUsage.push(generation.usage)
-          return generation.output
+          return parseMealAnalysisOutput(generation.text)
         })
 
         const totalUsage = combineUsage(usageRecord?.usage, additionalUsage)
