@@ -19,14 +19,14 @@ export default defineAgent({
         errorFallbackText: "I couldn’t handle that. Please try again.",
         fallbackStreamingPlaceholderText: "Thinking…",
         triggerHistory: { maxMessages: 8, source: "thread" },
-        timeout: 50_000,
+        timeout: 25_000,
       },
       webhookSecret: () => useServerEnv().telegram.webhookSecret,
     }),
   },
   driver: {
     execution: {
-      callSettings: { maxRetries: 5 },
+      callSettings: { maxRetries: 2 },
     },
     model: gateway("zai/glm-5v-turbo", () => ({
       apiKey: useServerEnv().vercelAiGatewayToken,
