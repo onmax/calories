@@ -89,9 +89,9 @@ test("the Agent Definition uses ViteHub usage for persisted and Telegram costs",
     "utf8",
   )
 
-  assert.match(agent, /import \{[^}]*\bdb\b[^}]*\busage\b[^}]*\} from "vite-hub\/agent\/capabilities"/)
-  assert.match(agent, /usage\(\)/)
-  assert.match(agent, /event\.extensions\.get\("usage"\)/)
+  assert.match(agent, /import \{[^}]*\bdb\b[^}]*\busageCost\b[^}]*\} from "vite-hub\/agent\/capabilities"/)
+  assert.match(agent, /usageCost\(\)/)
+  assert.match(agent, /event\.extensions\.get\("usage-cost"\)/)
   assert.match(agent, /event\.reply\(`\$\{result\.text\}\\n\\n\$\{cost\}`\)/)
   assert.match(reply, /\{\{ cost \}\}/)
 })

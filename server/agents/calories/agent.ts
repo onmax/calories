@@ -2,7 +2,7 @@ import { and, eq, or } from "drizzle-orm"
 import { useStorage } from "nitro/storage"
 import { createGateway, generateText, type LanguageModelUsage } from "ai-v7"
 import { defineAgent, gateway, type AgentUsage, type AgentUsageRecord, type ImagePart, type Message } from "vite-hub/agent"
-import { db, usage, vercelAiGatewayPricing } from "vite-hub/agent/capabilities"
+import { db, usageCost, vercelAiGatewayPricing } from "vite-hub/agent/capabilities"
 import { telegram } from "vite-hub/agent/channels"
 import { blob } from "vite-hub/blob"
 import { renderMarkdownTemplate } from "vite-hub/markdown-template"
@@ -105,7 +105,7 @@ async function createTelegramMealId(chatId: string, photoIdentity: string): Prom
 export default defineAgent({
   capabilities: [
     db({ mode: "write" }),
-    usage(),
+    usageCost(),
   ],
   channels: {
     telegram: telegram({
@@ -142,7 +142,7 @@ export default defineAgent({
       if (event.error) return
 
       const result = event.result as CaloriesAgentOutput
-      const usageRecord = event.extensions.get("usage")
+      const usageRecord = event.extensions.get("usage-cost")
       if (result.kind === "reply") {
         const { cost } = formatUsageCost(usageRecord)
         return event.reply(`${result.text}\n\n${cost}`)

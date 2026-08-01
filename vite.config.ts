@@ -12,7 +12,6 @@ export const viteHubOptions = {
     databaseId: process.env.CLOUDFLARE_D1_DATABASE_ID,
     databaseName: process.env.CLOUDFLARE_D1_DATABASE_NAME || "vitehub-calories",
     driver: "d1",
-    remote: true,
   },
 } satisfies ViteHubOptions
 

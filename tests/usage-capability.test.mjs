@@ -1,21 +1,23 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { defineAgent, runAgent } from "vite-hub/agent"
-import { usage } from "vite-hub/agent/capabilities"
+import { usageCost, vercelAiGatewayPricing } from "vite-hub/agent/capabilities"
 
-test("ViteHub usage enriches the normalized invocation record with cost", async () => {
+test("ViteHub usage cost enriches the normalized invocation record", async () => {
   let usageRecord
   const agent = defineAgent({
     capabilities: [
-      usage({
-        fetch: async () => Response.json({
-          data: [{
-            id: "zai/glm-5v-turbo",
-            pricing: {
-              input: "0.0000012",
-              output: "0.000004",
-            },
-          }],
+      usageCost({
+        pricing: vercelAiGatewayPricing({
+          fetch: async () => Response.json({
+            data: [{
+              id: "zai/glm-5v-turbo",
+              pricing: {
+                input: "0.0000012",
+                output: "0.000004",
+              },
+            }],
+          }),
         }),
       }),
     ],
@@ -33,7 +35,7 @@ test("ViteHub usage enriches the normalized invocation record with cost", async 
     },
     hooks: {
       "agent:finish": event => {
-        usageRecord = event.extensions.get("usage")
+        usageRecord = event.extensions.get("usage-cost")
       },
     },
   })

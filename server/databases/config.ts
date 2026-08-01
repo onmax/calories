@@ -39,6 +39,7 @@ export default defineDatabase({
   cloudflare: {
     databaseId: process.env.CLOUDFLARE_D1_DATABASE_ID,
     databaseName: process.env.CLOUDFLARE_D1_DATABASE_NAME || "vitehub-calories",
+    http: true,
   },
   schema: { meals },
 })

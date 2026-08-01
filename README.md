@@ -77,13 +77,8 @@ pnpm telegram:webhook
 
 `APP_URL`, `TELEGRAM_ALLOWED_USER_ID`, and `TELEGRAM_WEBHOOK_SECRET` must be present when registering the webhook. Telegram requires the user to start the bot once before the bot can learn the numeric ID or send a message back.
 
-## Compatibility patches
+## Compatibility patch
 
-The repository keeps four narrow pnpm patches:
+The repository temporarily patches `@chat-adapter/telegram` to aggregate incoming Telegram albums. The fix is merged upstream in [vercel/chat#760](https://github.com/vercel/chat/pull/760) but has not shipped in a release yet.
 
-- `@chat-adapter/telegram` supplies `image/jpeg` metadata for Telegram photos.
-- `@vite-hub/agent` keeps manual reply delivery and generated state types working.
-- `@vite-hub/database` routes Vite development to the Cloudflare D1 HTTP API.
-- `vite-hub` keeps deployment-only Nitro configuration out of the Vite development server.
-
-Each patch can be removed when its behavior ships upstream.
+Remove the patch after upgrading to the first `@chat-adapter/telegram` release containing that pull request.
