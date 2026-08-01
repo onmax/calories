@@ -207,10 +207,10 @@ index 25d6c94f006fd5016d717dd8f8b76f42c7be2ee7..4738f0e97e9017907228bda68f5e4def
  export { viteHubNuxtModule as default };
 diff --git a/dist/src-B7MeIOQc.js b/dist/src-B7MeIOQc.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..662da77fe5a9966d8fc579872dea2b5515896725
+index 0000000000000000000000000000000000000000..8d61974171ca6588ec05db26013ce57e7b876a65
 --- /dev/null
 +++ b/dist/src-B7MeIOQc.js
-@@ -0,0 +1,1156 @@
+@@ -0,0 +1,1157 @@
 +import { builtinModules, createRequire } from "node:module";
 +import { existsSync, readFileSync, statSync } from "node:fs";
 +import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -1314,6 +1314,7 @@ index 0000000000000000000000000000000000000000..662da77fe5a9966d8fc579872dea2b55
 +		providerImportAliases,
 +		runtimeCapabilityImports: {
 +			blob: blobEnabled ? `${generatedImportBase}/blob` : false,
++			db: options.database ? "vite-hub/database/drizzle" : false,
 +			email: "vite-hub/email/server",
 +			kv: `${generatedImportBase}/kv`
 +		},
@@ -1369,10 +1370,10 @@ index 0000000000000000000000000000000000000000..662da77fe5a9966d8fc579872dea2b55
 +export { VITEHUB_NITRO_CONFIG_CONTEXT as n, VITEHUB_SERVER_DIRS as r, vitehub as t };
 diff --git a/dist/src-DG39-wmN.js b/dist/src-DG39-wmN.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..49dd7da07564fc5850064dac3a2765cbcd32e543
+index 0000000000000000000000000000000000000000..f8d5e0f8a71faa3b5308dca878ae6a6f29ea00e9
 --- /dev/null
 +++ b/dist/src-DG39-wmN.js
-@@ -0,0 +1,1144 @@
+@@ -0,0 +1,1145 @@
 +import { builtinModules, createRequire } from "node:module";
 +import { existsSync, readFileSync, statSync } from "node:fs";
 +import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -2464,6 +2465,7 @@ index 0000000000000000000000000000000000000000..49dd7da07564fc5850064dac3a2765cb
 +		providerImportAliases,
 +		runtimeCapabilityImports: {
 +			blob: blobEnabled ? `${generatedImportBase}/blob` : false,
++			db: options.database ? "vite-hub/database/drizzle" : false,
 +			email: "vite-hub/email/server",
 +			kv: `${generatedImportBase}/kv`
 +		},
@@ -2518,7 +2520,7 @@ index 0000000000000000000000000000000000000000..49dd7da07564fc5850064dac3a2765cb
 +//#endregion
 +export { VITEHUB_NITRO_CONFIG_CONTEXT as n, VITEHUB_SERVER_DIRS as r, vitehub as t };
 diff --git a/dist/src-o6zB-soj.js b/dist/src-o6zB-soj.js
-index 88adf9f63bab11eb574a3deba4c1dd9b6abe6e43..91d76a2344a22f5cdd7279a622e15400fea91364 100644
+index 88adf9f63bab11eb574a3deba4c1dd9b6abe6e43..e2e3924da5e8fb126d59a498dc63e632f7be6537 100644
 --- a/dist/src-o6zB-soj.js
 +++ b/dist/src-o6zB-soj.js
 @@ -878,11 +878,24 @@ function resolveDeploymentIdentity(root, configuredName, workersBuildsName) {
@@ -2560,6 +2562,14 @@ index 88adf9f63bab11eb574a3deba4c1dd9b6abe6e43..91d76a2344a22f5cdd7279a622e15400
  			}
  			const configuredPreset = typeof nitro.preset === "string" ? nitro.preset : void 0;
  			const configuredHosting = process.env.VITEHUB_HOSTING;
+@@ -1080,6 +1100,7 @@ function vitehub(options) {
+ 		providerImportAliases,
+ 		runtimeCapabilityImports: {
+ 			blob: blobEnabled ? `${generatedImportBase}/blob` : false,
++			db: options.database ? "vite-hub/database/drizzle" : false,
+ 			email: "vite-hub/email/server",
+ 			kv: `${generatedImportBase}/kv`
+ 		},
 diff --git a/package.json b/package.json
 index 7b7253ddd11723536163e1cebc9f2f654bd93a8c..5e0c556c7105aae2a1c9403ccf8bea7f6fb2b029 100644
 --- a/package.json
