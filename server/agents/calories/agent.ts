@@ -32,7 +32,7 @@ export default defineAgent({
         delivery: "manual",
         errorFallbackText: "I couldn’t handle that. Please try again.",
         fallbackStreamingPlaceholderText: "Thinking…",
-        triggerHistory: { maxMessages: 8, source: "thread" },
+        triggerHistory: "none",
         timeout: 25_000,
       },
       webhookSecret: () => useServerEnv().telegram.webhookSecret,
