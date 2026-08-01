@@ -49,7 +49,6 @@ vite.config.ts                    ViteHub plugin and environment
 nuxt.config.ts                    Nuxt UI, ViteHub modules, Nitro v3
 patches/                          package compatibility patches
 scripts/
-  set-telegram-webhook.mjs        webhook registration
   stage-d1-migrations.mjs         migration handoff to Wrangler
   stage-spa.mjs                   Nuxt nightly SPA shell for Worker assets
 ```
@@ -73,9 +72,10 @@ Create or bind the D1 database and R2 bucket, then set the Worker secrets:
 pnpm db:migrate:remote
 pnpm deploy
 pnpm telegram:webhook
+pnpm telegram:webhook --apply --confirm-origin https://your-deployed-origin.example
 ```
 
-`APP_URL`, `TELEGRAM_ALLOWED_USER_ID`, and `TELEGRAM_WEBHOOK_SECRET` must be present when registering the webhook. Telegram requires the user to start the bot once before the bot can learn the numeric ID or send a message back.
+Set `VITEHUB_DEPLOYMENT_URL` in `.env` to the exact deployed HTTPS origin before running these commands; ViteHub will not infer a Worker or preview URL. `TELEGRAM_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` must also be present. The first command inspects Telegram and prints the proposed route without mutating it, while the second applies only after the confirmation origin matches. `TELEGRAM_ALLOWED_USER_ID` is still required by the running app, and Telegram requires the user to start the bot once before it can learn the numeric ID or send a message back.
 
 ## Compatibility patch
 

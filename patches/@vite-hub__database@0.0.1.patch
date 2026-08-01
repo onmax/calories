@@ -1,0 +1,3245 @@
+diff --git a/dist/definition-config-DkdJxJeF.js b/dist/definition-config-DkdJxJeF.js
+index c450e5771f234d547d688818df2750f0d1d013a1..f02ae10d6e6d054c35e8e48b55d95b64fb1844be 100644
+--- a/dist/definition-config-DkdJxJeF.js
++++ b/dist/definition-config-DkdJxJeF.js
+@@ -9,7 +9,12 @@ function defaultUrl(name) {
+ 	return `file:.vitehub/data/database/${name}.sqlite.db`;
+ }
+ function runtimeConfig(definition) {
+-	const cloudflare = definition.cloudflare ?? definitionDefaults.cloudflare;
++	const remote = typeof process === "object" && process.env.VITEHUB_DATABASE_REMOTE === "true";
++	const cloudflare = definition.cloudflare || definitionDefaults.cloudflare ? {
++		...definitionDefaults.cloudflare,
++		...definition.cloudflare,
++		...remote ? { http: true } : {}
++	} : void 0;
+ 	return {
+ 		...cloudflare ? { cloudflare: {
+ 			...cloudflare,
+diff --git a/dist/drizzle-subpath.d.ts b/dist/drizzle-subpath.d.ts
+index fdf757ad53fff942bb52435e7635553ed6ff4fad..d81388723225cb368ec051b3dd96d0200dc138e3 100644
+--- a/dist/drizzle-subpath.d.ts
++++ b/dist/drizzle-subpath.d.ts
+@@ -2,7 +2,6 @@ import "./virtual-module.d.ts"
+ 
+ import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core"
+ import schema from "#vitehub/database/schema"
+-import type { AgentDatabaseHandle } from "./runtime/agent.js"
+ 
+ type DrizzleRuntimeDatabase<TSchema extends Record<string, unknown>> = BaseSQLiteDatabase<"async", unknown, TSchema>
+ 
+@@ -20,6 +19,12 @@ export declare const databases: Record<string, RuntimeDatabaseEntry<Record<strin
+ 
+ export declare const db: DrizzleRuntimeDatabase<typeof schema>
+ 
++export interface AgentDatabaseHandle {
++  exec(statement: string): Promise<unknown>
++  query(statement: string): Promise<unknown>
++  schema(): Promise<unknown>
++}
++
+ export declare const agentDb: AgentDatabaseHandle & {
+   database(name: string): AgentDatabaseHandle
+ }
+diff --git a/dist/drizzle.d.ts b/dist/drizzle.d.ts
+index 9d24ce8698ff9d0c9688f0472ee3b9ee2baa946a..deab93583294fa08226d3fd46f382942da58794b 100644
+--- a/dist/drizzle.d.ts
++++ b/dist/drizzle.d.ts
+@@ -1,4 +1,3 @@
+-import { AgentDatabaseHandle } from "./runtime/agent.js";
+ import schema from "#vitehub/database/schema";
+ import { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
+ export * from "#vitehub/database/schema";
+@@ -14,10 +13,14 @@ declare const databases: Record<string, RuntimeDatabaseEntry<Record<string, unkn
+ };
+ declare const db: DrizzleRuntimeDatabase<typeof schema>;
+ declare const agentDb: {
+-  database(name: string): AgentDatabaseHandle;
+-  exec(statement: string): Promise<unknown>;
+-  query(statement: string): Promise<unknown>;
+-  schema(): Promise<unknown>;
++  database(name: string): {
++    exec: (statement: string) => import("drizzle-orm/sqlite-core/query-builders/raw").SQLiteRaw<unknown>;
++    query: (statement: string) => import("drizzle-orm/sqlite-core/query-builders/raw").SQLiteRaw<unknown[]>;
++    schema: () => import("drizzle-orm/sqlite-core/query-builders/raw").SQLiteRaw<unknown[]>;
++  };
++  exec: (statement: string) => import("drizzle-orm/sqlite-core/query-builders/raw").SQLiteRaw<unknown>;
++  query: (statement: string) => import("drizzle-orm/sqlite-core/query-builders/raw").SQLiteRaw<unknown[]>;
++  schema: () => import("drizzle-orm/sqlite-core/query-builders/raw").SQLiteRaw<unknown[]>;
+ };
+ //#endregion
+ export { RuntimeDatabaseEntry, agentDb, databases, db, schema };
+\ No newline at end of file
+diff --git a/dist/drizzle.js b/dist/drizzle.js
+index 0627a5cc11def1d73e455370093a101f414ddf63..df522edc6aacf83965c2acc367e31edeed8f8e0a 100644
+--- a/dist/drizzle.js
++++ b/dist/drizzle.js
+@@ -1,8 +1,8 @@
+ import { n as isRemoteSqliteUrl, t as createDrizzleSqliteAdapter } from "./drizzle-adapter-CpqHesRx.js";
+-import { createAgentDatabase } from "./runtime/agent.js";
+ import { dirname } from "node:path";
+ import { mkdirSync } from "node:fs";
+ import schema from "#vitehub/database/schema";
++import { sql } from "drizzle-orm";
+ import { createClient } from "@libsql/client";
+ import { drizzle } from "drizzle-orm/libsql";
+ import databaseEntries from "#vitehub/database/databases";
+@@ -47,6 +47,20 @@ const db$1 = databases$1.default.db;
+ //#region src/drizzle.ts
+ const databases = databases$1;
+ const db = db$1;
+-const agentDb = createAgentDatabase(databases);
++function agentDatabaseHandle(entry) {
++	return {
++		exec: (statement) => entry.db.run(sql.raw(statement)),
++		query: (statement) => entry.db.all(sql.raw(statement)),
++		schema: () => entry.db.all(sql.raw("SELECT name, type, sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"))
++	};
++}
++const agentDb = {
++	...agentDatabaseHandle(databases.default),
++	database(name) {
++		const entry = databases[name];
++		if (!entry) throw new Error(`[vitehub] Database "${name}" is not configured.`);
++		return agentDatabaseHandle(entry);
++	}
++};
+ //#endregion
+ export { agentDb, databases, db, schema };
+diff --git a/dist/index.js b/dist/index.js
+index 2c606f83c173cb2f26ecd72c296cb4147af7edb7..5dc53f9a28d92e5ea3dbd2f646524009d2b33c6c 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -35,7 +35,7 @@ function defineDatabase(options) {
+ 	};
+ 	const runtime = createDefinitionRuntime(definition);
+ 	return new Proxy(definition, { get(target, property, receiver) {
+-		return Reflect.has(target, property) || typeof property === "string" && allowedDefinitionKeys.has(property) ? Reflect.get(target, property, receiver) : Reflect.get(runtime, property);
++		return Reflect.has(target, property) ? Reflect.get(target, property, receiver) : Reflect.get(runtime, property);
+ 	} });
+ }
+ //#endregion
+diff --git a/dist/nuxt.d.ts b/dist/nuxt.d.ts
+index 488a9b407dfcf3cb34d043e256dfe2d8733a837a..f034b000df1898686356164ad4043c83b51413eb 100644
+--- a/dist/nuxt.d.ts
++++ b/dist/nuxt.d.ts
+@@ -1,6 +1,9 @@
+ import { p as DatabaseNuxtIntegrationOptions } from "./types-nPF7IReI.js";
+ 
+ //#region src/nuxt.d.ts
++interface DatabaseNuxtModuleFactoryOptions {
++  runtimeStateImport?: string;
++}
+ type NuxtModuleDependencies = Record<string, {
+   defaults?: Record<string, unknown>;
+   optional?: boolean;
+@@ -15,7 +18,7 @@ type DatabaseNuxtModule = {
+   };
+   getModuleDependencies: (nuxt: unknown) => NuxtModuleDependencies;
+ };
+-declare function hubDb(options?: DatabaseNuxtIntegrationOptions): DatabaseNuxtModule;
++declare function hubDb(options?: DatabaseNuxtIntegrationOptions, factoryOptions?: DatabaseNuxtModuleFactoryOptions): DatabaseNuxtModule;
+ declare const nuxtModule: DatabaseNuxtModule;
+ //#endregion
+ export { nuxtModule as default, hubDb };
+\ No newline at end of file
+diff --git a/dist/nuxt.js b/dist/nuxt.js
+index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d0a0067cf 100644
+--- a/dist/nuxt.js
++++ b/dist/nuxt.js
+@@ -1,6 +1,6 @@
+ import { t as isPlainObject } from "./object-BbKda0MT.js";
+-import { r as writeFileIfChanged } from "./config-D4O1BX9H.js";
+-import { a as mergeCloudflareD1Bindings, i as hubDb$1, o as resolveCloudflareD1Binding, s as resolveViteHubProjectRoot } from "./vite-BhybkS79.js";
++import { n as resolveDBViteConfig, r as writeFileIfChanged } from "./config-D4O1BX9H.js";
++import { a as mergeCloudflareD1Bindings, c as resolveViteHubProjectRoot, i as hubDb$1, o as resolveCloudflareD1Binding, s as resolveCloudflareD1Bindings } from "./vite-wjxBbGkz.js";
+ import { resolve } from "node:path";
+ function deploymentPresetFromNitro(value) {
+ 	const normalized = value?.trim().toLowerCase().replaceAll("_", "-");
+@@ -21,7 +21,8 @@ function getHostingProvider(hosting) {
+ //#region src/nuxt.ts
+ const generatedNitroDatabaseMiddleware = ".vitehub/nitro/database/middleware.ts";
+ const databaseDrizzleImport = "@vite-hub/database/drizzle";
+-function hubDb(options = {}) {
++const databaseRuntimeStateImport = "@vite-hub/database/runtime/state";
++function hubDb(options = {}, factoryOptions = {}) {
+ 	const module = async function viteHubDatabaseNuxtModule(inlineOptions, nuxt) {
+ 		const nuxtOptions = nuxt.options;
+ 		const resolvedOptions = resolveDatabaseNuxtOptions(options, inlineOptions, nuxtOptions);
+@@ -38,20 +39,18 @@ function hubDb(options = {}) {
+ 			projectRoot: root
+ 		});
+ 		const d1 = resolveDatabaseNuxtD1Options(resolvedOptions, nuxtOptions);
++		const discoveredD1Bindings = resolveDiscoveredDatabaseD1Bindings(resolvedOptions, root, nuxtOptions.serverDir ? [nuxtOptions.serverDir] : void 0);
+ 		const hook = nuxt.hook;
+ 		if (typeof hook === "function") hook("nitro:config", async (config) => {
+ 			const provider = resolveNitroHostingProvider(config, nuxtOptions);
+ 			if (!nuxtOptions.dev && (provider || d1)) mergeNitroHostedCondition(config);
+ 			if (!nuxtOptions.dev) mergeNitroDatabaseRuntimeAlias(config, typeof viteConfig.root === "string" ? viteConfig.root : nuxtOptions.srcDir || root, provider ?? (d1 ? "cloudflare" : void 0));
+-			if (!nuxtOptions.dev && provider === "cloudflare") await installNitroCloudflareEnvBridge(config, root);
+-			if (d1) {
+-				mergeNitroRuntimeContentConfig(config, d1);
+-				mergeNitroConfigCloudflareConfig(config, d1);
+-			}
++			if (!nuxtOptions.dev && provider === "cloudflare") await installNitroCloudflareEnvBridge(config, root, factoryOptions.runtimeStateImport);
++			if (d1) mergeNitroRuntimeContentConfig(config, d1);
++			mergeNitroConfigCloudflareBindings(config, [...d1?.d1Database ? [d1.d1Database] : [], ...discoveredD1Bindings]);
+ 		});
+-		if (!d1) return;
+-		mergeNuxtContentConfig(nuxtOptions, d1);
+-		mergeNitroCloudflareConfig(nuxtOptions, d1);
++		if (d1) mergeNuxtContentConfig(nuxtOptions, d1);
++		mergeNitroCloudflareBindings(nuxtOptions, [...d1?.d1Database ? [d1.d1Database] : [], ...discoveredD1Bindings]);
+ 	};
+ 	module.getMeta = () => ({
+ 		configKey: "database",
+@@ -115,6 +114,10 @@ function resolveDatabaseNuxtD1Options(options, nuxtOptions) {
+ 		viteOptions: resolveDatabaseViteOptions(options) ?? {}
+ 	};
+ }
++function resolveDiscoveredDatabaseD1Bindings(options, root, serverDirs) {
++	const config = resolveDBViteConfig(resolveDatabaseViteOptions(options), root, { serverDirs });
++	return config ? resolveCloudflareD1Bindings(config).d1Databases : [];
++}
+ function installVitePlugin(viteConfig, options) {
+ 	const plugins = Array.isArray(viteConfig.plugins) ? viteConfig.plugins : [];
+ 	if (!plugins.some((plugin) => isPlainObject(plugin) && plugin.name === "@vite-hub/database/vite")) viteConfig.plugins = [hubDb$1(resolveDatabaseViteOptions(options)), ...plugins];
+@@ -140,7 +143,7 @@ function resolveNitroHostingProvider(config, nuxtOptions) {
+ 	const preset = typeof config.preset === "string" ? config.preset : typeof nuxtOptions.nitro?.preset === "string" ? nuxtOptions.nitro.preset : process.env.NITRO_PRESET || process.env.SERVER_PRESET || process.env.VITEHUB_HOSTING;
+ 	return getHostingProvider(preset) ?? (typeof preset === "string" && /^deno(?:-|$)/.test(preset) ? "deno" : void 0);
+ }
+-async function installNitroCloudflareEnvBridge(config, root) {
++async function installNitroCloudflareEnvBridge(config, root, runtimeStateImport = databaseRuntimeStateImport) {
+ 	const handlers = Array.isArray(config.handlers) ? [...config.handlers] : [];
+ 	if (!handlers.some((handler) => isPlainObject(handler) && handler.handler === generatedNitroDatabaseMiddleware)) handlers.unshift({
+ 		handler: generatedNitroDatabaseMiddleware,
+@@ -154,11 +157,11 @@ async function installNitroCloudflareEnvBridge(config, root) {
+ 	await writeFileIfChanged(resolve(root, generatedNitroDatabaseMiddleware), [
+ 		"import { env as vitehubEnv } from 'cloudflare:workers'",
+ 		"import { defineMiddleware } from 'nitro'",
+-		"import { setActiveCloudflareEnv } from '@vite-hub/database/runtime/state'",
++		`import { setActiveCloudflareEnv } from '${runtimeStateImport}'`,
+ 		"",
+ 		"export default defineMiddleware((event) => {",
+ 		"  const target = event as { env?: Record<string, unknown>, context?: { cloudflare?: { env?: Record<string, unknown> }, _platform?: { cloudflare?: { env?: Record<string, unknown> } } }, req?: { runtime?: { cloudflare?: { env?: Record<string, unknown> } } } }",
+-		"  setActiveCloudflareEnv(target.env ?? target.context?.cloudflare?.env ?? target.context?._platform?.cloudflare?.env ?? target.req?.runtime?.cloudflare?.env ?? (vitehubEnv as unknown as Record<string, unknown>))",
++		"  setActiveCloudflareEnv(target.env ?? target.context?.cloudflare?.env ?? target.context?._platform?.cloudflare?.env ?? target.req?.runtime?.cloudflare?.env ?? vitehubEnv as unknown as Record<string, unknown>)",
+ 		"})",
+ 		""
+ 	].join("\n"));
+@@ -170,15 +173,15 @@ function mergeNitroExternal(value, addition) {
+ 	if (typeof value === "function") return (source, importer, isResolved) => source === addition || Boolean(value(source, importer, isResolved));
+ 	return value;
+ }
+-function mergeNitroCloudflareConfig(config, d1) {
+-	if (!d1.d1Database) return;
++function mergeNitroCloudflareBindings(config, d1Databases) {
++	if (!d1Databases.length) return;
+ 	const wrangler = ensureRecord(ensureRecord(ensureRecord(config, "nitro"), "cloudflare"), "wrangler");
+-	wrangler.d1_databases = mergeCloudflareD1Bindings(wrangler.d1_databases, [d1.d1Database]);
++	wrangler.d1_databases = mergeCloudflareD1Bindings(wrangler.d1_databases, d1Databases);
+ }
+-function mergeNitroConfigCloudflareConfig(config, d1) {
+-	if (!d1.d1Database) return;
++function mergeNitroConfigCloudflareBindings(config, d1Databases) {
++	if (!d1Databases.length) return;
+ 	const wrangler = ensureRecord(ensureRecord(config, "cloudflare"), "wrangler");
+-	wrangler.d1_databases = mergeCloudflareD1Bindings(wrangler.d1_databases, [d1.d1Database]);
++	wrangler.d1_databases = mergeCloudflareD1Bindings(wrangler.d1_databases, d1Databases);
+ }
+ function hasNuxtContentModule(modules) {
+ 	return Array.isArray(modules) && modules.some((module) => {
+diff --git a/dist/runtime/agent.d.ts b/dist/runtime/agent.d.ts
+deleted file mode 100644
+index 79f4c00828a83ac53840644e61a6246504dd78d0..0000000000000000000000000000000000000000
+diff --git a/dist/runtime/agent.js b/dist/runtime/agent.js
+deleted file mode 100644
+index da6519b2e170c836c227dabaa7ff075435ee6ced..0000000000000000000000000000000000000000
+diff --git a/dist/runtime/definition-local.js b/dist/runtime/definition-local.js
+index 276aac62cfd3631c298226827f95564199e979db..d4e5358e43b44304e03c73fbf234bee6c5368ac0 100644
+--- a/dist/runtime/definition-local.js
++++ b/dist/runtime/definition-local.js
+@@ -12,6 +12,7 @@ function resolveLocalUrl(url) {
+ }
+ function createDefinitionRuntime(definition) {
+ 	return createDrizzleSqliteAdapter(runtimeConfig(definition), definition.schema, {
++		cloudflareD1Http: true,
+ 		libsql: {
+ 			createClient,
+ 			drizzle
+diff --git a/dist/types-nPF7IReI.d.ts b/dist/types-nPF7IReI.d.ts
+index be7782a21685f630b998396e63e3a10a3b227eff..ff54e730a6cc49cff6d32415bce56b3ded29f211 100644
+--- a/dist/types-nPF7IReI.d.ts
++++ b/dist/types-nPF7IReI.d.ts
+@@ -43,6 +43,7 @@ interface DatabaseRuntimeD1Options {
+   local?: DatabaseLocalRuntimeOptions;
+   migrationsTable?: string;
+   previewDatabaseId?: DatabaseConfigValue;
++  remote?: boolean;
+ }
+ interface DatabaseIntegrationOptions {
+   cli?: false | {
+diff --git a/dist/vite-BFNPrO7q.js b/dist/vite-BFNPrO7q.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..acbb35e9321992082925d969b85ed5d9402e64ac
+--- /dev/null
++++ b/dist/vite-BFNPrO7q.js
+@@ -0,0 +1,1463 @@
++import { createDbCliContributor } from "./cli.js";
++import { a as createImportPath, i as computePackageDir, n as resolveDBViteConfig, o as ensureGeneratedDir, s as resolveRuntimeModule$1 } from "./config-D4O1BX9H.js";
++import { n as renderConfigValueExpression, r as resolveConfigValue } from "./config-value-GbX6yaWX.js";
++import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
++import { dirname as dirname$1, normalize, relative as relative$1, resolve as resolve$1 } from "pathe";
++import { existsSync, readFileSync, statSync } from "node:fs";
++import { cp, mkdir, readFile, readdir, rm, rmdir, stat, writeFile } from "node:fs/promises";
++import { fileURLToPath } from "node:url";
++import { build } from "esbuild";
++//#region ../internal/src/build/vite.ts
++const projectRootDirectoryMarkers = [
++	["server", "agents"],
++	["server", "browsers"],
++	["server", "schedules"],
++	["server", "templates"],
++	["server", "workspaces"]
++];
++const projectRootDefinitionFileMarkers = [
++	".ts",
++	".mts",
++	".cts",
++	".js",
++	".mjs",
++	".cjs"
++].flatMap((extension) => [["server", `email${extension}`], [`server.email${extension}`]]);
++const projectRootFileMarkers = [["package.json"]];
++function createNoExternalMerger(packageName) {
++	return (current) => {
++		if (current === true) return true;
++		if (!current) return [packageName];
++		const values = Array.isArray(current) ? current : [current];
++		return values.includes(packageName) ? values : [...values, packageName];
++	};
++}
++function isServerEnvironment(name, config) {
++	return name === "ssr" || config.consumer === "server";
++}
++function includesNitroVitePlugin(value) {
++	if (Array.isArray(value)) return value.some(includesNitroVitePlugin);
++	if (!value || typeof value !== "object") return false;
++	return "name" in value && value.name === "nitro:main";
++}
++function hasNitroConfigContext(config) {
++	return config["__vitehubNitroConfigContext"] === true || includesNitroVitePlugin(config.plugins);
++}
++function resolveNitroVercelFunctionName(config, product, env = process.env) {
++	const preset = config.nitro?.preset || env.NITRO_PRESET || env.SERVER_PRESET;
++	const nitro = Boolean(preset) || hasNitroConfigContext(config);
++	const clientOutDir = config.environments?.client?.build?.outDir;
++	const vercel = preset ? preset.startsWith("vercel") : env.VITEHUB_HOSTING === "vercel" || Boolean(env.VERCEL) || Boolean(clientOutDir && /(^|[/\\])\.vercel[/\\]output([/\\]|$)/.test(clientOutDir));
++	return nitro && vercel ? `__${product}.func` : void 0;
++}
++function shouldSkipViteProviderBuild(command, mode) {
++	return command === "serve" || mode === "e2e";
++}
++function resolveViteHubProjectRoot(root, options = {}) {
++	const resolvedRoot = resolve(root);
++	if (options.projectRoot) return resolve(resolvedRoot, options.projectRoot);
++	if (basename(resolvedRoot) === "app") {
++		const parent = dirname(resolvedRoot);
++		if (hasProjectRootDirectoryMarker(parent) || hasProjectRootDefinitionFileMarker(parent)) return parent;
++	}
++	let current = resolvedRoot;
++	while (true) {
++		if (hasProjectRootMarker(current)) return current;
++		const parent = dirname(current);
++		if (parent === current) return resolvedRoot;
++		current = parent;
++	}
++}
++function hasProjectRootDirectoryMarker(root) {
++	for (const marker of projectRootDirectoryMarkers) try {
++		if (statSync(resolve(root, ...marker)).isDirectory()) return true;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++	}
++	return false;
++}
++function hasProjectRootMarker(root) {
++	if (hasProjectRootDirectoryMarker(root)) return true;
++	if (hasProjectRootDefinitionFileMarker(root)) return true;
++	for (const marker of projectRootFileMarkers) try {
++		if (statSync(resolve(root, ...marker)).isFile()) return true;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++	}
++	return false;
++}
++function hasProjectRootDefinitionFileMarker(root) {
++	for (const marker of projectRootDefinitionFileMarkers) try {
++		if (statSync(resolve(root, ...marker)).isFile()) return true;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++	}
++	return false;
++}
++//#endregion
++//#region src/internal/cloudflare.ts
++function resolveProvisionedD1Id(provisionState, name) {
++	return provisionState?.cloudflare?.d1?.[name];
++}
++function resolveCloudflareD1BindingName(database, binding) {
++	const trimmed = typeof binding === "string" ? binding.trim() : "";
++	if (trimmed) return trimmed;
++	if (database === "default") return "DB";
++	return `DB_${database.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").replace(/_+/g, "_").toUpperCase() || "DATABASE"}`;
++}
++function resolveDatabaseId$1(config, name, provisionState) {
++	return resolveConfigValue(config.databases[name]?.cloudflare?.databaseId) ?? resolveProvisionedD1Id(provisionState, name);
++}
++function createUnresolvedBinding(name, binding, database, reason) {
++	const databaseName = resolveConfigValue(database.databaseName);
++	const previewDatabaseId = resolveConfigValue(database.previewDatabaseId);
++	return {
++		binding,
++		database: name,
++		...databaseName ? { databaseName } : {},
++		...database.migrationsDir ? { migrationsDir: database.migrationsDir } : {},
++		...database.migrationsTable ? { migrationsTable: database.migrationsTable } : {},
++		...previewDatabaseId ? { previewDatabaseId } : {},
++		reason
++	};
++}
++function resolveCloudflareD1Binding(input, options = {}) {
++	const database = input.database?.trim() || "default";
++	const bindingName = resolveCloudflareD1BindingName(database, input.binding);
++	const databaseId = resolveConfigValue(input.databaseId) ?? resolveProvisionedD1Id(options.provisionState, database);
++	const databaseName = resolveConfigValue(input.databaseName);
++	const previewDatabaseId = resolveConfigValue(input.previewDatabaseId);
++	if (!databaseId) return {
++		bindingName,
++		unresolved: createUnresolvedBinding(database, bindingName, input, "missing-database-id")
++	};
++	if (!databaseName) return {
++		bindingName,
++		unresolved: createUnresolvedBinding(database, bindingName, input, "missing-database-name")
++	};
++	return {
++		bindingName,
++		d1Database: {
++			binding: bindingName,
++			database_id: databaseId,
++			database_name: databaseName,
++			...input.migrationsDir ? { migrations_dir: input.migrationsDir } : {},
++			...input.migrationsTable ? { migrations_table: input.migrationsTable } : {},
++			...previewDatabaseId ? { preview_database_id: previewDatabaseId } : {}
++		}
++	};
++}
++function resolveCloudflareD1Bindings(config, options = {}) {
++	const d1Databases = [];
++	const unresolved = [];
++	for (const name of config.databaseNames) {
++		const database = config.databases[name]?.cloudflare;
++		if (!database) continue;
++		const projection = resolveCloudflareD1Binding({
++			database: name,
++			binding: database.binding,
++			databaseId: resolveDatabaseId$1(config, name, options.provisionState),
++			databaseName: database.databaseName,
++			migrationsDir: database.migrationsDir,
++			migrationsTable: database.migrationsTable,
++			previewDatabaseId: database.previewDatabaseId
++		});
++		if (projection.d1Database) d1Databases.push(projection.d1Database);
++		if (projection.unresolved) unresolved.push(projection.unresolved);
++	}
++	return {
++		d1Databases,
++		unresolved
++	};
++}
++function mergeCloudflareD1Bindings(current, generated) {
++	const bindings = [];
++	const bindingNames = /* @__PURE__ */ new Set();
++	if (Array.isArray(current)) {
++		for (const binding of current) if (isCloudflareD1WranglerBinding(binding) && !bindingNames.has(binding.binding)) {
++			bindings.push({ ...binding });
++			bindingNames.add(binding.binding);
++		}
++	}
++	for (const binding of generated) {
++		const index = bindings.findIndex((item) => item.binding === binding.binding);
++		if (index === -1) bindings.push(binding);
++		else bindings[index] = { ...binding };
++	}
++	return bindings;
++}
++function isCloudflareD1WranglerBinding(value) {
++	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
++	const binding = value;
++	return typeof binding.binding === "string" && typeof binding.database_id === "string" && typeof binding.database_name === "string";
++}
++const VITEHUB_MODES = {
++	e2e: "e2e",
++	blob: "blob",
++	chat: "chat",
++	db: "db",
++	env: "env",
++	kv: "kv",
++	queue: "queue",
++	schedule: "schedule",
++	sandbox: "sandbox",
++	workspace: "workspace",
++	workflow: "workflow"
++};
++function isViteCli(argv) {
++	return argv.some((arg) => /(?:^|[/\\])vite(?:\.[cm]?js)?$/.test(arg) || arg === "vite");
++}
++function getViteCliMode(argv = process.argv) {
++	if (!isViteCli(argv)) return;
++	const modes = new Set(Object.values(VITEHUB_MODES));
++	for (let index = 0; index < argv.length; index += 1) {
++		const arg = argv[index];
++		const mode = arg === "--mode" || arg === "-m" ? argv[index + 1] : arg.startsWith("--mode=") ? arg.slice(7) : void 0;
++		if (mode && modes.has(mode)) return mode;
++	}
++}
++function getViteMode(env = process.env) {
++	return env["VITEHUB_VITE_MODE"] ?? getViteCliMode();
++}
++//#endregion
++//#region ../internal/src/build/client-output.ts
++function hasStaticIndex(clientDir) {
++	return existsSync(resolve$1(clientDir, "index.html"));
++}
++async function copyClientOutput(clientDir, targetDir) {
++	const resolvedClientDir = resolve$1(clientDir);
++	const resolvedTargetDir = resolve$1(targetDir);
++	if (resolvedClientDir === resolvedTargetDir) return;
++	await rm(resolvedTargetDir, {
++		force: true,
++		recursive: true
++	});
++	await mkdir(dirname$1(resolvedTargetDir), { recursive: true });
++	const targetRelativePath = relative$1(resolvedClientDir, resolvedTargetDir);
++	if (targetRelativePath && !targetRelativePath.startsWith("../")) {
++		const [targetRootEntry] = targetRelativePath.split("/", 1);
++		await mkdir(resolvedTargetDir, { recursive: true });
++		await Promise.all((await readdir(resolvedClientDir)).filter((entry) => entry !== targetRootEntry).map((entry) => cp(resolve$1(resolvedClientDir, entry), resolve$1(resolvedTargetDir, entry), { recursive: true })));
++		return;
++	}
++	await cp(resolvedClientDir, resolvedTargetDir, { recursive: true });
++}
++//#endregion
++//#region ../internal/src/build/provider-output-config.ts
++function isProviderJsonArray(value, ancestors) {
++	if (Object.getPrototypeOf(value) !== Array.prototype || ancestors.has(value)) return false;
++	if (Reflect.ownKeys(value).length !== value.length + 1) return false;
++	ancestors.add(value);
++	try {
++		for (let index = 0; index < value.length; index++) {
++			const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
++			if (!descriptor?.enumerable || !("value" in descriptor) || !isProviderJsonValue(descriptor.value, ancestors)) return false;
++		}
++		return true;
++	} finally {
++		ancestors.delete(value);
++	}
++}
++function isProviderJsonRecordValue(value, ancestors) {
++	const prototype = Object.getPrototypeOf(value);
++	if (prototype !== Object.prototype && prototype !== null || ancestors.has(value)) return false;
++	ancestors.add(value);
++	try {
++		return Reflect.ownKeys(value).every((key) => {
++			if (typeof key !== "string") return false;
++			const descriptor = Object.getOwnPropertyDescriptor(value, key);
++			return descriptor?.enumerable === true && "value" in descriptor && isProviderJsonValue(descriptor.value, ancestors);
++		});
++	} finally {
++		ancestors.delete(value);
++	}
++}
++function isProviderJsonValue(value, ancestors) {
++	if (value === null || typeof value === "boolean" || typeof value === "string") return true;
++	if (typeof value === "number") return Number.isFinite(value);
++	if (Array.isArray(value)) return isProviderJsonArray(value, ancestors);
++	return typeof value === "object" && isProviderJsonRecordValue(value, ancestors);
++}
++function isProviderJsonRecord(value) {
++	try {
++		return typeof value === "object" && value !== null && !Array.isArray(value) && isProviderJsonRecordValue(value, /* @__PURE__ */ new Set());
++	} catch {
++		return false;
++	}
++}
++function assertProviderJsonRecord(value) {
++	if (!isProviderJsonRecord(value)) throw new TypeError("[vitehub] Provider output config must be a JSON object.");
++}
++function isFileNotFoundError(error) {
++	return error instanceof Error && "code" in error && error.code === "ENOENT";
++}
++async function readProviderJsonRecord(file) {
++	try {
++		const parsed = JSON.parse(await readFile(file, "utf8"));
++		assertProviderJsonRecord(parsed);
++		return parsed;
++	} catch (error) {
++		if (isFileNotFoundError(error)) return;
++		throw error;
++	}
++}
++function deleteOwnedFields(value, ownership) {
++	const next = { ...value };
++	for (const key of ownership.keys ?? []) delete next[key];
++	for (const field of Object.keys(ownership.arrays ?? {})) delete next[field];
++	return next;
++}
++function getKeyedArrayEntryValue(value, key) {
++	if (key === void 0) return value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string" ? value : void 0;
++	if (!isProviderJsonRecord(value)) return;
++	const entryValue = value[key];
++	return entryValue === null || typeof entryValue === "boolean" || typeof entryValue === "number" || typeof entryValue === "string" ? entryValue : void 0;
++}
++function preserveUnownedKeyedArrayEntries(value, ownership, replacements = []) {
++	const current = Array.isArray(value) ? value : [];
++	const replacementKeys = replacements.flatMap((entry) => {
++		const key = getKeyedArrayEntryValue(entry, ownership.key);
++		return key === void 0 ? [] : [key];
++	});
++	const ownedKeys = new Set([...ownership.values ?? [], ...replacementKeys]);
++	return current.filter((entry) => {
++		const key = getKeyedArrayEntryValue(entry, ownership.key);
++		return key === void 0 || !ownedKeys.has(key);
++	});
++}
++function mergeOwnedArrays(existing, value, arrays) {
++	const next = { ...value };
++	for (const [field, ownership] of Object.entries(arrays ?? {})) {
++		const incoming = Array.isArray(value[field]) ? value[field] : [];
++		const merged = [...preserveUnownedKeyedArrayEntries(existing[field], ownership, incoming), ...incoming];
++		if (merged.length) next[field] = merged;
++		else delete next[field];
++	}
++	return next;
++}
++async function persistProviderJsonRecord(file, value, removeIfEmpty) {
++	if (removeIfEmpty && !Object.keys(value).length) {
++		await rm(file, { force: true });
++		return;
++	}
++	await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
++}
++async function writeProviderOutputConfig(file, value, ownership = {}, options = {}) {
++	await persistProviderJsonRecord(file, mergeProviderOutputConfig(await readProviderJsonRecord(file) ?? {}, value, ownership), options.removeIfEmpty === true);
++}
++function mergeProviderOutputConfig(existing, value, ownership = {}) {
++	assertProviderJsonRecord(existing);
++	assertProviderJsonRecord(value);
++	return {
++		...deleteOwnedFields(existing, ownership),
++		...mergeOwnedArrays(existing, value, ownership.arrays)
++	};
++}
++function stringifyProviderOutputConfig(value) {
++	assertProviderJsonRecord(value);
++	return JSON.stringify(value, null, 2);
++}
++async function cleanProviderOutputConfig(file, ownership) {
++	if (!ownership.keys?.length && !Object.keys(ownership.arrays ?? {}).length) return;
++	const existing = await readProviderJsonRecord(file);
++	if (!existing) return;
++	const next = deleteOwnedFields(existing, ownership);
++	let changed = (ownership.keys ?? []).some((key) => key in existing);
++	for (const [field, arrayOwnership] of Object.entries(ownership.arrays ?? {})) {
++		if (!(field in existing)) continue;
++		const current = existing[field];
++		const preserved = preserveUnownedKeyedArrayEntries(current, arrayOwnership);
++		changed ||= !Array.isArray(current) || preserved.length !== current.length || preserved.length === 0;
++		if (preserved.length) next[field] = preserved;
++	}
++	if (!changed) return;
++	await persistProviderJsonRecord(file, next, true);
++}
++//#endregion
++//#region ../internal/src/build/user-entry.ts
++function toSafeAppName(rootDir) {
++	return basename(rootDir).replace(/[^a-z0-9-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
++}
++const DEFAULT_ENTRY_NAMES = [
++	"server.ts",
++	"server.mts",
++	"server.js",
++	"server.mjs",
++	"worker.ts",
++	"worker.mts",
++	"worker.js",
++	"worker.mjs"
++];
++function resolveUserAppEntry(rootDir, options = {}) {
++	const names = options.names ?? DEFAULT_ENTRY_NAMES;
++	const srcSubdir = options.srcSubdir ?? "src";
++	return names.map((name) => resolve(rootDir, srcSubdir, name)).find(existsSync);
++}
++//#endregion
++//#region ../internal/src/build/cloudflare.ts
++const defaultCloudflareCompatibilityDate = "2026-04-20";
++function createDefaultCloudflareOutputRoot(rootDir) {
++	return resolve(rootDir, "dist", toSafeAppName(rootDir));
++}
++async function writeCloudflareWranglerConfig(options) {
++	const outputRoot = options.outputRoot ?? createDefaultCloudflareOutputRoot(options.rootDir);
++	const configFile = resolve(outputRoot, "wrangler.json");
++	if (!options.wranglerConfig) {
++		await cleanProviderOutputConfig(configFile, options.wranglerConfigOwnership ?? {});
++		return;
++	}
++	await mkdir(outputRoot, { recursive: true });
++	await writeProviderOutputConfig(configFile, options.wranglerConfig, options.wranglerConfigOwnership, { removeIfEmpty: true });
++}
++//#endregion
++//#region ../internal/src/build/esbuild.ts
++const viteRawNamespace = "vitehub-vite-raw";
++const viteMarkdownTemplateNamespace = "vitehub-markdown-template";
++const markdownTemplateFileSuffix = ".template.md";
++const markdownTemplateModuleQuery = "markdown-template";
++const markdownTemplateRegistryId = "#vitehub/templates";
++const markdownTemplateRegistryPath = ".vitehub/markdown-template/templates.mjs";
++const skipMarkdownTemplateResolve = "vitehubSkipMarkdownTemplateResolve";
++const markdownTemplateRuntimeSpecifier = "@vite-hub/markdown-template";
++function resolveEsbuildAliases(aliases) {
++	if (!aliases) return;
++	return Object.fromEntries(Object.entries(aliases).filter(([specifier]) => !specifier.endsWith("/")));
++}
++function stripMarkdownCode(template) {
++	let fence;
++	let inList = false;
++	let previousLineBlank = true;
++	return template.split("\n").map((line) => {
++		const content = line.replace(/^(?: {0,3}> ?)+/, "");
++		if (!fence) {
++			const listIndented = inList && /^ {4}(?:`{3,}|~{3,})/.test(content);
++			const opening = (listIndented ? content.slice(4) : content).match(/^ {0,3}(`{3,}|~{3,})/);
++			if (!opening) {
++				if (/^ {0,3}(?:[-+*]|\d+[.)])\s+/.test(content)) inList = true;
++				else if (content.trim() && !/^ {2,}/.test(content)) inList = false;
++				const indentedCode = !inList && previousLineBlank && /^(?: {4}|\t)/.test(content) || inList && previousLineBlank && /^(?: {8}| {4}\t|\t{2})/.test(content);
++				previousLineBlank = content.trim() === "";
++				return indentedCode ? "" : line;
++			}
++			fence = {
++				marker: opening[1][0],
++				length: opening[1].length,
++				listIndented
++			};
++			previousLineBlank = false;
++			return "";
++		}
++		const closing = (fence.listIndented ? content.replace(/^ {4}/, "") : content).match(/^ {0,3}(`+|~+)\s*$/)?.[1];
++		if (closing?.[0] === fence.marker && closing.length >= fence.length) fence = void 0;
++		previousLineBlank = false;
++		return "";
++	}).join("\n");
++}
++function extractMarkdownTemplateImportSpecifiers(template) {
++	const visible = stripMarkdownCode(template).replace(/(`+)[\s\S]*?\1/g, "").replace(/(!?\[[^\]]*\])\([^)]*\)/g, "$1").replace(/^ {0,3}\[[^\]]+\]:\s*\S+/gm, "").replace(/<[^>]*>/g, "");
++	const specifiers = /* @__PURE__ */ new Set();
++	for (const match of visible.matchAll(/@(\.\.?\/[^\s<>{}[\]]+)/g)) {
++		const token = match[1];
++		const trailing = token.match(/[.,;:!?)]*$/)?.[0] || "";
++		specifiers.add(token.slice(0, token.length - trailing.length));
++	}
++	return [...specifiers];
++}
++function parseMarkdownTemplateRequest(id) {
++	const queryIndex = id.indexOf("?");
++	const path = id.split(/[?#]/, 1)[0];
++	if (queryIndex === -1) return path.endsWith(markdownTemplateFileSuffix) ? { path } : void 0;
++	const query = id.slice(queryIndex + 1).split("#", 1)[0];
++	if (!new URLSearchParams(query).has(markdownTemplateModuleQuery)) return;
++	return { path };
++}
++function renderMarkdownTemplateModule(template, sourceId, imports = {}) {
++	return [
++		`import { renderMarkdownTemplate as vitehubRenderMarkdownTemplate } from ${JSON.stringify(markdownTemplateRuntimeSpecifier)}`,
++		`const vitehubMarkdownTemplate = ${JSON.stringify(template)}`,
++		`const vitehubMarkdownTemplateSourceId = ${JSON.stringify(sourceId)}`,
++		`const vitehubMarkdownTemplateImports = ${JSON.stringify(imports)}`,
++		"export default function render(data = {}) {",
++		"  return vitehubRenderMarkdownTemplate(vitehubMarkdownTemplate, { data, sourceId: vitehubMarkdownTemplateSourceId, resolveImport: (specifier, importer) => vitehubMarkdownTemplateImports[`${importer}\\0${specifier}`] })",
++		"}",
++		""
++	].join("\n");
++}
++function hasViteRawQuery(path) {
++	const queryIndex = path.indexOf("?");
++	return queryIndex !== -1 && /(?:^|&)raw(?:&|$)/.test(path.slice(queryIndex + 1));
++}
++async function resolveViteRawSpecifier(path, rootDir) {
++	if (path.startsWith("/@fs/")) return path.slice(5);
++	if (!rootDir || !path.startsWith("/")) return path;
++	const rootRelativePath = path.slice(1);
++	const publicPath = resolve(rootDir, "public", rootRelativePath);
++	try {
++		await stat(publicPath);
++		return publicPath;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++		return resolve(rootDir, rootRelativePath);
++	}
++}
++function createViteRawPlugin(rootDir, frameworkRuntime) {
++	return {
++		name: "vitehub-vite-raw",
++		setup(build) {
++			build.onResolve({
++				filter: /^@vite-hub\/markdown-template$/,
++				namespace: viteMarkdownTemplateNamespace
++			}, async (args) => {
++				if (!frameworkRuntime) return { path: fileURLToPath(import.meta.resolve(markdownTemplateRuntimeSpecifier)) };
++				return build.resolve("vite-hub/_internal/markdown-template", {
++					importer: args.importer,
++					kind: args.kind,
++					resolveDir: args.resolveDir
++				});
++			});
++			build.onResolve({ filter: /\?|\.template\.md$/ }, async (args) => {
++				if (args.pluginData?.[skipMarkdownTemplateResolve]) return;
++				const markdownTemplate = parseMarkdownTemplateRequest(args.path);
++				const raw = hasViteRawQuery(args.path);
++				if (!markdownTemplate && !raw) return;
++				const specifier = await resolveViteRawSpecifier(markdownTemplate?.path ?? args.path.slice(0, args.path.indexOf("?")), rootDir);
++				const resolved = await build.resolve(specifier, {
++					importer: args.importer,
++					kind: args.kind,
++					namespace: args.namespace,
++					pluginData: markdownTemplate ? {
++						...args.pluginData && typeof args.pluginData === "object" ? args.pluginData : {},
++						[skipMarkdownTemplateResolve]: true
++					} : args.pluginData,
++					resolveDir: args.resolveDir,
++					with: args.with
++				});
++				if (resolved.errors.length) return {
++					errors: resolved.errors,
++					warnings: resolved.warnings
++				};
++				if (resolved.external) return {
++					external: true,
++					namespace: resolved.namespace,
++					path: resolved.path,
++					pluginData: resolved.pluginData,
++					sideEffects: resolved.sideEffects,
++					suffix: resolved.suffix,
++					warnings: resolved.warnings
++				};
++				if (resolved.namespace !== "file") return {
++					errors: [{ text: markdownTemplate ? `[vitehub] Markdown template fallback cannot load ${JSON.stringify(args.path)} from the ${JSON.stringify(resolved.namespace)} namespace. Handle this template import in a caller plugin.` : `[vitehub] Vite raw fallback cannot load ${JSON.stringify(args.path)} from the ${JSON.stringify(resolved.namespace)} namespace. Handle this raw import in a caller plugin.` }],
++					warnings: resolved.warnings
++				};
++				return {
++					namespace: markdownTemplate ? viteMarkdownTemplateNamespace : viteRawNamespace,
++					path: resolved.path,
++					pluginData: resolved.pluginData,
++					sideEffects: resolved.sideEffects,
++					suffix: resolved.suffix,
++					warnings: resolved.warnings
++				};
++			});
++			build.onLoad({
++				filter: /.*/,
++				namespace: viteRawNamespace
++			}, async (args) => ({
++				contents: await readFile(args.path),
++				loader: "text"
++			}));
++			build.onLoad({
++				filter: /.*/,
++				namespace: viteMarkdownTemplateNamespace
++			}, async (args) => ({
++				contents: await (async () => {
++					const template = await readFile(args.path, "utf8");
++					const imports = {};
++					const visited = new Set([args.path]);
++					const visit = async (source, importer) => {
++						for (const specifier of extractMarkdownTemplateImportSpecifiers(source)) {
++							const key = `${importer}\0${specifier}`;
++							if (imports[key]) continue;
++							const resolved = await build.resolve(specifier, {
++								importer,
++								kind: "import-statement",
++								pluginData: {
++									...args.pluginData && typeof args.pluginData === "object" ? args.pluginData : {},
++									[skipMarkdownTemplateResolve]: true
++								},
++								resolveDir: dirname(importer)
++							});
++							if (resolved.errors.length) return Promise.reject(new Error(resolved.errors.map((error) => error.text).join("\n")));
++							if (resolved.external || resolved.namespace !== "file") throw new Error(`[vitehub] Could not resolve Markdown template import ${JSON.stringify(specifier)} from ${JSON.stringify(importer)} to a file.`);
++							const imported = {
++								id: resolved.path,
++								template: await readFile(resolved.path, "utf8")
++							};
++							imports[key] = imported;
++							if (!visited.has(imported.id)) {
++								visited.add(imported.id);
++								await visit(imported.template, imported.id);
++							}
++						}
++					};
++					await visit(template, args.path);
++					return renderMarkdownTemplateModule(template, args.path, imports);
++				})(),
++				loader: "js",
++				resolveDir: dirname(args.path)
++			}));
++		}
++	};
++}
++async function bundleEsmEntry(entryFile, outfile, options = {}) {
++	const format = options.format || "esm";
++	const platform = options.platform || "neutral";
++	const markdownTemplateRoot = options.rootDir && resolveViteHubProjectRoot(options.rootDir);
++	const aliases = resolveEsbuildAliases({
++		...markdownTemplateRoot ? { [markdownTemplateRegistryId]: resolve(markdownTemplateRoot, markdownTemplateRegistryPath) } : {},
++		...options.alias
++	});
++	const frameworkRuntime = Object.keys(aliases || {}).some((specifier) => specifier === "vite-hub" || specifier.startsWith("vite-hub/"));
++	await build({
++		alias: aliases,
++		banner: options.banner || format === "esm" && platform === "node" ? { js: [options.banner, ...format === "esm" && platform === "node" ? [
++			"import { createRequire as __createRequire } from \"node:module\";",
++			"import { dirname as __vitehubDirname } from \"node:path\";",
++			"import { fileURLToPath as __vitehubFileURLToPath } from \"node:url\";",
++			"globalThis.require = __createRequire(import.meta.url);",
++			"globalThis.__filename = __vitehubFileURLToPath(import.meta.url);",
++			"globalThis.__dirname = __vitehubDirname(globalThis.__filename);"
++		] : []].filter(Boolean).join("\n") } : void 0,
++		bundle: true,
++		conditions: options.conditions ?? (platform === "node" ? ["node"] : void 0),
++		entryPoints: [entryFile],
++		external: options.external,
++		format,
++		logLevel: "silent",
++		mainFields: options.mainFields ?? (platform === "neutral" ? ["module", "main"] : void 0),
++		minifyIdentifiers: options.minifyIdentifiers,
++		outfile,
++		platform,
++		plugins: [...options.plugins ?? [], createViteRawPlugin(options.rootDir, frameworkRuntime)],
++		sourcemap: false,
++		target: "es2022",
++		write: true
++	});
++}
++//#endregion
++//#region ../internal/src/build/vercel-config.ts
++function createVercelConfigJson() {
++	return {
++		routes: [{ handle: "filesystem" }, {
++			src: "/(.*)",
++			dest: "/__server"
++		}],
++		version: 3
++	};
++}
++function createNodeFunctionConfig(extra = {}) {
++	return {
++		handler: "index.mjs",
++		launcherType: "Nodejs",
++		runtime: "nodejs22.x",
++		shouldAddHelpers: false,
++		supportsResponseStreaming: true,
++		...extra
++	};
++}
++//#endregion
++//#region ../internal/src/build/deployment-output.ts
++const composedProviderOutputKey = Symbol.for("vitehub.composedProviderOutput");
++const providerDeploymentOutputWrites = /* @__PURE__ */ new Map();
++function useComposedProviderOutput(config) {
++	const owner = config;
++	return owner[composedProviderOutputKey] ??= {
++		runtimeModuleFilesByProduct: {},
++		vercelRuntimePackagesByProduct: {}
++	};
++}
++function resetComposedProviderOutput(composed) {
++	if (composed) composed.runtimeModuleFilesByProduct = {};
++	if (composed) composed.vercelRuntimePackagesByProduct = {};
++}
++function registerProviderRuntimeModules(composed, product, runtimeModuleFiles) {
++	if (composed) composed.runtimeModuleFilesByProduct[product] = runtimeModuleFiles;
++}
++function getProviderRuntimeModule(composed, product, provider) {
++	return composed?.runtimeModuleFilesByProduct[product]?.[provider];
++}
++function resolveClientOutput(rootDir, clientOutDir) {
++	const clientDir = resolve(rootDir, clientOutDir);
++	return {
++		clientDir,
++		staticIndex: hasStaticIndex(clientDir)
++	};
++}
++function createDefaultCloudflareStaticOutputDir(rootDir) {
++	return resolve(rootDir, "dist", "client");
++}
++function createDefaultVercelOutputRoot(rootDir) {
++	return resolve(rootDir, ".vercel", "output");
++}
++function createDefaultNetlifyOutputRoot(rootDir) {
++	return resolve(rootDir, ".netlify", "v1");
++}
++function assertNetlifyFunctionName(functionName) {
++	if (!functionName || functionName.includes("\\") || functionName.split("/").some((part) => !part || part === "." || part === "..")) throw new Error(`Invalid Netlify function name: ${functionName}`);
++}
++function resolveNetlifyFunctionFile(functionsRoot, functionName) {
++	assertNetlifyFunctionName(functionName);
++	return resolve(functionsRoot, `${functionName}.mjs`);
++}
++async function appendNetlifyFunctionConfig(outfile, config) {
++	if (!config) return;
++	await writeFile(outfile, `${(await readFile(outfile, "utf8")).trimEnd()}\n\nexport const config = ${stringifyProviderOutputConfig(config)}\n`, "utf8");
++}
++async function writeCloudflareDeploymentOutput(options) {
++	const { clientDir, staticIndex } = resolveClientOutput(options.rootDir, options.clientOutDir);
++	const outputRoot = options.outputRoot ?? createDefaultCloudflareOutputRoot(options.rootDir);
++	const files = Object.entries(options.files ?? {});
++	const workerOutfile = options.bundleEntry ? resolve(outputRoot, options.bundleOutfileName ?? "index.js") : void 0;
++	if (workerOutfile && files.some(([fileName]) => resolve(outputRoot, fileName) === workerOutfile)) throw new Error(`Cloudflare output file conflicts with bundle outfile: ${workerOutfile}`);
++	await mkdir(outputRoot, { recursive: true });
++	const writes = [
++		writeCloudflareWranglerConfig({
++			outputRoot,
++			rootDir: options.rootDir,
++			wranglerConfig: options.wranglerConfig,
++			wranglerConfigOwnership: options.wranglerConfigOwnership ?? { keys: options.wranglerConfigKeys }
++		}),
++		options.bundleEntry && staticIndex ? copyClientOutput(clientDir, options.staticOutputDir ?? createDefaultCloudflareStaticOutputDir(options.rootDir)) : Promise.resolve(),
++		...files.map(([fileName, contents]) => writeFile(resolve(outputRoot, fileName), contents, "utf8"))
++	];
++	if (options.bundleEntry && workerOutfile) {
++		await rm(workerOutfile, {
++			force: true,
++			recursive: true
++		});
++		writes.push(bundleEsmEntry(options.bundleEntry, workerOutfile, {
++			...options.bundleOptions,
++			rootDir: options.rootDir
++		}));
++	}
++	await Promise.all(writes);
++}
++async function copyVercelClientOutput(rootDir, clientDir, staticOutputDir) {
++	const cloudflareOutputRoot = createDefaultCloudflareOutputRoot(rootDir);
++	const outputRelativePath = relative(clientDir, cloudflareOutputRoot);
++	const excludesCloudflareOutput = outputRelativePath && outputRelativePath !== ".." && !outputRelativePath.startsWith(`..${sep}`) && !isAbsolute(outputRelativePath);
++	await copyClientOutput(clientDir, staticOutputDir);
++	if (resolve(clientDir) === resolve(staticOutputDir) || !excludesCloudflareOutput) return;
++	try {
++		await readFile(resolve(cloudflareOutputRoot, "wrangler.json"));
++	} catch (error) {
++		if (error.code === "ENOENT") return;
++		throw error;
++	}
++	await rm(resolve(staticOutputDir, outputRelativePath), {
++		force: true,
++		recursive: true
++	});
++}
++async function writeVercelDeploymentOutput(options) {
++	const { clientDir, staticIndex } = resolveClientOutput(options.rootDir, options.clientOutDir);
++	const outputRoot = options.outputRoot ?? createDefaultVercelOutputRoot(options.rootDir);
++	const functionOutput = options.function ?? { kind: "root" };
++	const serverFunctionName = functionOutput.kind === "root" ? "__server.func" : functionOutput.name;
++	const config = options.config ?? (functionOutput.kind === "root" ? createVercelConfigJson() : {});
++	const serverDir = resolve(outputRoot, "functions", serverFunctionName);
++	const serverEntry = resolve(serverDir, "index.mjs");
++	await mkdir(serverDir, { recursive: true });
++	const staleFiles = (await readdir(serverDir)).filter((file) => file !== "node_modules");
++	await Promise.all(staleFiles.map((file) => rm(resolve(serverDir, file), {
++		force: true,
++		recursive: true
++	})));
++	await Promise.all([
++		bundleEsmEntry(options.bundleEntry, serverEntry, {
++			...options.bundleOptions,
++			rootDir: options.rootDir
++		}),
++		writeFile(resolve(serverDir, ".vc-config.json"), `${stringifyProviderOutputConfig(options.functionConfig ?? createNodeFunctionConfig())}\n`, "utf8"),
++		writeProviderOutputConfig(resolve(outputRoot, "config.json"), config, { keys: options.configKeys }),
++		staticIndex ? copyVercelClientOutput(options.rootDir, clientDir, options.staticOutputDir ?? resolve(outputRoot, "static")) : Promise.resolve()
++	]);
++}
++async function writeNetlifyDeploymentOutput(options) {
++	const outputRoot = options.outputRoot ?? createDefaultNetlifyOutputRoot(options.rootDir);
++	const functionsRoot = resolve(outputRoot, "functions");
++	const functionWrites = (options.functions ?? []).map(async (func) => {
++		const outfile = resolveNetlifyFunctionFile(functionsRoot, func.functionName);
++		await rm(outfile, {
++			force: true,
++			recursive: true
++		});
++		await mkdir(dirname(outfile), { recursive: true });
++		await bundleEsmEntry(func.bundleEntry, outfile, {
++			...func.bundleOptions,
++			minifyIdentifiers: func.config ? true : func.bundleOptions.minifyIdentifiers,
++			rootDir: options.rootDir
++		});
++		await appendNetlifyFunctionConfig(outfile, func.config);
++	});
++	await mkdir(outputRoot, { recursive: true });
++	await Promise.all([writeProviderOutputConfig(resolve(outputRoot, "config.json"), options.config ?? {}, { keys: options.configKeys }), ...functionWrites]);
++}
++async function cleanupCloudflareDeploymentOutput(rootDir, cleanupInput) {
++	const cleanup = typeof cleanupInput === "function" ? await cleanupInput() : cleanupInput;
++	const outputRoot = cleanup.outputRoot ?? createDefaultCloudflareOutputRoot(rootDir);
++	const writes = (cleanup.fileNames ?? []).map((fileName) => rm(resolve(outputRoot, fileName), {
++		force: true,
++		recursive: true
++	}));
++	writes.push(writeCloudflareWranglerConfig({
++		outputRoot,
++		rootDir,
++		wranglerConfigOwnership: cleanup.wranglerConfigOwnership
++	}));
++	await Promise.all(writes);
++	try {
++		await rmdir(outputRoot);
++	} catch (error) {
++		const code = error.code;
++		if (code !== "ENOENT" && code !== "ENOTEMPTY") throw error;
++	}
++}
++async function cleanupVercelDeploymentOutput(rootDir, cleanup) {
++	const outputRoot = cleanup.outputRoot ?? createDefaultVercelOutputRoot(rootDir);
++	const writes = [];
++	if (cleanup.serverFunctionName) writes.push(rm(resolve(outputRoot, "functions", cleanup.serverFunctionName), {
++		force: true,
++		recursive: true
++	}));
++	writes.push(cleanProviderOutputConfig(resolve(outputRoot, "config.json"), { keys: cleanup.configKeys }));
++	await Promise.all(writes);
++}
++async function cleanupVercelDeploymentOutputs(rootDir, cleanup) {
++	await Promise.all((Array.isArray(cleanup) ? cleanup : [cleanup]).map((item) => cleanupVercelDeploymentOutput(rootDir, item)));
++}
++async function cleanupNetlifyDeploymentOutput(rootDir, cleanup) {
++	const outputRoot = cleanup.outputRoot ?? createDefaultNetlifyOutputRoot(rootDir);
++	const functionsRoot = resolve(outputRoot, "functions");
++	const writes = (cleanup.functionNames ?? []).map((functionName) => rm(resolveNetlifyFunctionFile(functionsRoot, functionName), {
++		force: true,
++		recursive: true
++	}));
++	writes.push(cleanProviderOutputConfig(resolve(outputRoot, "config.json"), { keys: cleanup.configKeys }));
++	await Promise.all(writes);
++}
++async function writeProviderDeploymentOutputsNow(options) {
++	const writes = [];
++	if (options.cloudflare) writes.push(writeCloudflareDeploymentOutput({
++		...options.cloudflare,
++		clientOutDir: options.clientOutDir,
++		rootDir: options.rootDir
++	}));
++	else if (options.cleanup?.cloudflare) writes.push(cleanupCloudflareDeploymentOutput(options.rootDir, options.cleanup.cloudflare));
++	if (options.netlify) writes.push(writeNetlifyDeploymentOutput({
++		...options.netlify,
++		clientOutDir: options.clientOutDir,
++		rootDir: options.rootDir
++	}));
++	else if (options.cleanup?.netlify) writes.push(cleanupNetlifyDeploymentOutput(options.rootDir, options.cleanup.netlify));
++	if (options.vercel) writes.push(writeVercelDeploymentOutput({
++		...options.vercel,
++		clientOutDir: options.clientOutDir,
++		rootDir: options.rootDir
++	}));
++	else if (options.cleanup?.vercel) {
++		const cleanup = typeof options.cleanup.vercel === "function" ? await options.cleanup.vercel() : options.cleanup.vercel;
++		if (cleanup) writes.push(cleanupVercelDeploymentOutputs(options.rootDir, cleanup));
++	}
++	await Promise.all(writes);
++	await options.afterWrite?.();
++}
++async function writeProviderDeploymentOutputs(options) {
++	const key = resolve(options.rootDir);
++	const write = (providerDeploymentOutputWrites.get(key) ?? Promise.resolve()).catch(() => void 0).then(() => writeProviderDeploymentOutputsNow(options));
++	providerDeploymentOutputWrites.set(key, write);
++	try {
++		await write;
++	} finally {
++		if (providerDeploymentOutputWrites.get(key) === write) providerDeploymentOutputWrites.delete(key);
++	}
++}
++//#endregion
++//#region src/internal/generated.ts
++function createTableExports(definition, definitionVariable) {
++	return definition.tableNames.map((tableName) => `export const ${tableName} = ${definitionVariable}.schema[${JSON.stringify(tableName)}]`);
++}
++function renderGeneratedDrizzleSchema(file, definition) {
++	const definitionVariable = "databaseDefinition";
++	return [
++		`import ${definitionVariable} from ${JSON.stringify(createImportPath(file, definition.handler))}`,
++		"",
++		...createTableExports(definition, definitionVariable),
++		`export const schema = ${definitionVariable}.schema`,
++		"export default schema",
++		""
++	].join("\n");
++}
++function renderDbCredentials(database) {
++	const databaseId = renderConfigValueExpression(database.cloudflare?.databaseId);
++	if (database.cloudflare?.http && databaseId) return [
++		"  driver: \"d1-http\",",
++		"  dbCredentials: {",
++		"    accountId: process.env[\"CLOUDFLARE_ACCOUNT_ID\"],",
++		`    databaseId: ${databaseId},`,
++		"    token: process.env[\"CLOUDFLARE_API_TOKEN\"],",
++		"  },"
++	];
++	const url = renderConfigValueExpression(database.connection?.url);
++	const authToken = renderConfigValueExpression(database.connection?.authToken);
++	if (!url) return [];
++	return [
++		"  dbCredentials: {",
++		...authToken ? [`    authToken: ${authToken},`] : [],
++		`    url: ${url},`,
++		"  },"
++	];
++}
++function renderGeneratedDrizzleConfig(config, databaseNames = config.databaseNames) {
++	const schemaFiles = databaseNames.map((name) => config.generatedSchemaFilesByDatabase[name]);
++	const database = config.databases[databaseNames[0]];
++	const out = databaseNames.length === 1 ? database.migrationsDir : ".vitehub/database/migrations";
++	return [
++		"export default {",
++		"  dialect: \"sqlite\",",
++		...renderDbCredentials(database),
++		`  schema: ${JSON.stringify(schemaFiles)},`,
++		`  out: ${JSON.stringify(out)},`,
++		"}",
++		""
++	].join("\n");
++}
++async function writeGeneratedDatabaseArtifacts(config) {
++	await Promise.all(config.definitions.map(async (definition) => {
++		const file = config.generatedSchemaFilesByDatabase[definition.name];
++		await mkdir(dirname$1(file), { recursive: true });
++		await writeFile(file, renderGeneratedDrizzleSchema(file, definition), "utf8");
++	}));
++	await mkdir(dirname$1(config.generatedDrizzleConfigFile), { recursive: true });
++	await writeFile(config.generatedDrizzleConfigFile, renderGeneratedDrizzleConfig(config), "utf8");
++	await Promise.all(config.databaseNames.map(async (name) => {
++		const file = config.generatedDrizzleConfigFilesByDatabase[name];
++		await mkdir(dirname$1(file), { recursive: true });
++		await writeFile(file, renderGeneratedDrizzleConfig(config, [name]), "utf8");
++	}));
++}
++//#endregion
++//#region src/internal/runtime-config-expression.ts
++function getDefaultCloudflareBindingName(name) {
++	if (name === "default") return "DB";
++	return `DB_${name.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").replace(/_+/g, "_").toUpperCase() || "DATABASE"}`;
++}
++function renderConfigExpression(value) {
++	return typeof value === "undefined" ? "undefined" : JSON.stringify(value);
++}
++function serializeDatabaseConfig({ cloudflare: _cloudflare, connection: _connection, drizzle: _drizzle, ...database }) {
++	return JSON.stringify(database, null, 4);
++}
++function renderDatabaseConfigExpression(name, config, definitionVariable) {
++	const base = config.databases[name];
++	const baseHttp = base.cloudflare?.http;
++	const baseHttpConfig = baseHttp && baseHttp !== true ? baseHttp : void 0;
++	const http = `${definitionVariable}.cloudflare.http === true ? true : ${definitionVariable}.cloudflare.http ? { authToken: ${definitionVariable}.cloudflare.http.authToken ?? ${renderConfigExpression(baseHttpConfig?.authToken)}, url: ${definitionVariable}.cloudflare.http.url ?? ${renderConfigExpression(baseHttpConfig?.url)} } : ${renderConfigExpression(baseHttp)}`;
++	return [
++		"{",
++		`      ...${serializeDatabaseConfig(base)},`,
++		`      cloudflare: ${definitionVariable}.cloudflare ? { binding: ${definitionVariable}.cloudflare.binding ?? ${JSON.stringify(base.cloudflare?.binding ?? getDefaultCloudflareBindingName(name))}, databaseId: ${definitionVariable}.cloudflare.databaseId, databaseName: ${definitionVariable}.cloudflare.databaseName, http: ${http}, migrationsDir: ${JSON.stringify(base.migrationsDir)}, migrationsTable: ${definitionVariable}.cloudflare.migrationsTable, previewDatabaseId: ${definitionVariable}.cloudflare.previewDatabaseId } : undefined,`,
++		`      connection: ${definitionVariable}.connection ? { authToken: ${definitionVariable}.connection.authToken ?? ${renderConfigExpression(base.connection?.authToken)}, url: ${definitionVariable}.connection.url ?? ${renderConfigExpression(base.connection?.url)} } : ${renderConfigExpression(base.connection)},`,
++		`      drizzle: ${definitionVariable}.drizzle ?? {},`,
++		"    }"
++	].join("\n");
++}
++//#endregion
++//#region ../internal/src/provision-state.ts
++const PROVISION_STATE_FILE = ".vitehub/provision.json";
++function getProvisionStatePath(rootDir) {
++	return resolve$1(rootDir, PROVISION_STATE_FILE);
++}
++function readProvisionStateSync(rootDir) {
++	try {
++		return parseProvisionState(readFileSync(getProvisionStatePath(rootDir), "utf8"));
++	} catch {
++		return {};
++	}
++}
++function readProvisionedId(state, provider, category, key) {
++	return state[provider]?.[category]?.[key];
++}
++function parseProvisionState(raw) {
++	const parsed = JSON.parse(raw);
++	return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
++}
++//#endregion
++//#region src/internal/vite-build.ts
++const dbPackageName = "@vite-hub/database";
++const productName = "database";
++const packageDir = computePackageDir(import.meta.url);
++const resolveRuntimeModule = (modulePath) => resolveRuntimeModule$1(packageDir, modulePath);
++const providerEntrySpecs = [{
++	entryFile: "cloudflare-worker.mjs",
++	factory: "createDbCloudflareWorker",
++	name: "cloudflare",
++	runtimeModule: "runtime/cloudflare-vite"
++}, {
++	entryFile: "vercel-server.mjs",
++	factory: "createDbVercelServer",
++	name: "vercel",
++	runtimeModule: "runtime/vercel-vite"
++}];
++function renderRuntimeModule(file, runtimeConfig) {
++	const imports = runtimeConfig.definitions.flatMap((definition, index) => [`import definition_${index} from ${JSON.stringify(createImportPath(file, definition.handler))}`, `import schema_${index} from ${JSON.stringify(createImportPath(file, runtimeConfig.generatedSchemaFilesByDatabase[definition.name]))}`]);
++	const databaseEntries = runtimeConfig.databaseNames.map((name, index) => [
++		`  ${JSON.stringify(name)}: {`,
++		`    db: createHostedDrizzleDb(${renderDatabaseConfigExpression(name, runtimeConfig, `definition_${index}`)}, schema_${index}),`,
++		`    schema: schema_${index},`,
++		"  },"
++	].join("\n"));
++	return [
++		`import { createHostedDrizzleDb } from ${JSON.stringify(createImportPath(file, resolveRuntimeModule("runtime/hosted")))}`,
++		"",
++		...imports,
++		"",
++		"export const databases = {",
++		...databaseEntries,
++		"}",
++		"",
++		...runtimeConfig.databaseNames.includes("default") ? ["export const db = databases.default.db", "export const schema = databases.default.schema"] : [],
++		""
++	].join("\n");
++}
++function renderProviderEntry(spec, entryFile, userAppEntry) {
++	const imports = [`import { ${spec.factory} } from ${JSON.stringify(createImportPath(entryFile, resolveRuntimeModule(spec.runtimeModule)))}`];
++	if (userAppEntry) imports.push(`import dbApp from ${JSON.stringify(createImportPath(entryFile, userAppEntry))}`);
++	return [
++		...imports,
++		"",
++		`export default ${spec.factory}({`,
++		userAppEntry ? "  app: dbApp," : "",
++		"})",
++		""
++	].filter(Boolean).join("\n");
++}
++async function writeProviderEntries(rootDir, runtimeConfig) {
++	const generatedDir = ensureGeneratedDir(rootDir, productName);
++	await mkdir(generatedDir, { recursive: true });
++	const userAppEntry = resolveUserAppEntry(rootDir, { names: [
++		"server.db.ts",
++		"server.db.mts",
++		"server.db.js",
++		"server.db.mjs",
++		"server.ts",
++		"server.mts",
++		"server.js",
++		"server.mjs"
++	] });
++	const entryFiles = {
++		cloudflare: "",
++		vercel: ""
++	};
++	const runtimeModuleFiles = {
++		cloudflare: "",
++		vercel: ""
++	};
++	const definitionDefaultsFile = resolve$1(generatedDir, "definition-defaults.mjs");
++	await Promise.all([writeFile(definitionDefaultsFile, `export default ${JSON.stringify(runtimeConfig.definitionDefaults)}\n`, "utf8"), ...providerEntrySpecs.map(async (spec) => {
++		const entryFile = resolve$1(generatedDir, spec.entryFile);
++		const runtimeModuleFile = resolve$1(generatedDir, `${spec.name}-runtime.mjs`);
++		entryFiles[spec.name] = entryFile;
++		runtimeModuleFiles[spec.name] = runtimeModuleFile;
++		await Promise.all([writeFile(entryFile, renderProviderEntry(spec, entryFile, userAppEntry), "utf8"), writeFile(runtimeModuleFile, renderRuntimeModule(runtimeModuleFile, runtimeConfig), "utf8")]);
++	})]);
++	return {
++		cloudflareWorkerFile: entryFiles.cloudflare,
++		definitionDefaultsFile,
++		generatedDir,
++		runtimeModuleFiles,
++		vercelServerFile: entryFiles.vercel
++	};
++}
++function resolveDatabaseId(runtimeConfig, name, provisionState) {
++	return resolveConfigValue(runtimeConfig.databases[name]?.cloudflare?.databaseId) ?? readProvisionedId(provisionState, "cloudflare", "d1", name);
++}
++function isRemoteLibsqlConnectionUrl(value) {
++	const url = resolveConfigValue(value);
++	return typeof url === "string" ? /^(?:libsql:|https?:\/\/)/i.test(url) : typeof value !== "undefined";
++}
++function hasConfigValue(value) {
++	const databaseId = resolveConfigValue(value);
++	return typeof databaseId === "string" ? Boolean(databaseId.trim()) : typeof value !== "undefined";
++}
++function getCloudflareUnsupportedDatabases(runtimeConfig, provisionState) {
++	return runtimeConfig.databaseNames.filter((name) => {
++		const database = runtimeConfig.databases[name];
++		return !Boolean(resolveDatabaseId(runtimeConfig, name, provisionState)) && !isRemoteLibsqlConnectionUrl(database?.connection?.url);
++	});
++}
++function getCloudflareDatabasesMissingNames(runtimeConfig, provisionState) {
++	return runtimeConfig.databaseNames.filter((name) => {
++		const cloudflare = runtimeConfig.databases[name]?.cloudflare;
++		return Boolean(resolveDatabaseId(runtimeConfig, name, provisionState)) && !resolveConfigValue(cloudflare?.databaseName);
++	});
++}
++function getVercelUnsupportedDatabases(runtimeConfig) {
++	return runtimeConfig.databaseNames.filter((name) => {
++		const database = runtimeConfig.databases[name];
++		return !(Boolean(database?.cloudflare?.http) && hasConfigValue(database.cloudflare?.databaseId)) && !isRemoteLibsqlConnectionUrl(database?.connection?.url);
++	});
++}
++function createCloudflareOutput({ artifacts, providerOutput, provisionState, runtimeConfig }) {
++	const databasesMissingNames = getCloudflareDatabasesMissingNames(runtimeConfig, provisionState);
++	if (databasesMissingNames.length) throw new Error(`[vitehub] Cloudflare output requires \`db.cloudflare.databaseName\` when \`db.cloudflare.databaseId\` is set for databases: ${databasesMissingNames.join(", ")}.`);
++	const unsupportedDatabases = getCloudflareUnsupportedDatabases(runtimeConfig, provisionState);
++	if (unsupportedDatabases.length) throw new Error(`[vitehub] Cloudflare output requires \`db.cloudflare.databaseId\` or a remote libSQL \`db.connection.url\` for databases: ${unsupportedDatabases.join(", ")}.`);
++	const d1Databases = resolveCloudflareD1Bindings(runtimeConfig, { provisionState }).d1Databases;
++	const blobRuntime = getProviderRuntimeModule(providerOutput, "blob", "cloudflare");
++	const wranglerConfig = {
++		compatibility_date: defaultCloudflareCompatibilityDate,
++		compatibility_flags: ["nodejs_compat"],
++		...d1Databases.length ? { d1_databases: d1Databases } : {},
++		main: "index.js",
++		observability: { enabled: true }
++	};
++	return {
++		bundleEntry: artifacts.cloudflareWorkerFile,
++		bundleOptions: {
++			alias: {
++				"#vitehub/database/definition-defaults": artifacts.definitionDefaultsFile,
++				"@vite-hub/database/drizzle": artifacts.runtimeModuleFiles.cloudflare,
++				...blobRuntime ? { "@vite-hub/blob": blobRuntime } : {}
++			},
++			conditions: [
++				"vitehub-hosted",
++				"workerd",
++				"worker",
++				"browser",
++				"default"
++			],
++			external: ["node:async_hooks"],
++			format: "esm",
++			platform: "neutral"
++		},
++		wranglerConfigKeys: ["d1_databases"],
++		wranglerConfig
++	};
++}
++function createVercelOutput({ artifacts, providerOutput, runtimeConfig, serverFunctionName }) {
++	const unsupportedDatabases = getVercelUnsupportedDatabases(runtimeConfig);
++	if (unsupportedDatabases.length) throw new Error(`[vitehub] Vercel output requires \`db.cloudflare.http\` with \`db.cloudflare.databaseId\`, or a remote libSQL \`db.connection.url\`, for databases: ${unsupportedDatabases.join(", ")}.`);
++	const blobRuntime = getProviderRuntimeModule(providerOutput, "blob", "vercel");
++	return {
++		bundleEntry: artifacts.vercelServerFile,
++		bundleOptions: {
++			alias: {
++				"#vitehub/database/definition-defaults": artifacts.definitionDefaultsFile,
++				"@vite-hub/database/drizzle": artifacts.runtimeModuleFiles.vercel,
++				...blobRuntime ? { "@vite-hub/blob": blobRuntime } : {}
++			},
++			conditions: [
++				"vitehub-hosted",
++				"node",
++				"default"
++			],
++			format: "esm",
++			platform: "node"
++		},
++		...serverFunctionName ? { function: {
++			kind: "isolated",
++			name: serverFunctionName
++		} } : {}
++	};
++}
++function shouldCreateVercelOutput(runtimeConfig) {
++	return getVercelUnsupportedDatabases(runtimeConfig).length === 0;
++}
++function shouldCreateCloudflareOutput(runtimeConfig, provisionState) {
++	return getCloudflareUnsupportedDatabases(runtimeConfig, provisionState).length === 0 && getCloudflareDatabasesMissingNames(runtimeConfig, provisionState).length === 0;
++}
++function getSupportedProviderRuntimeModules(artifacts, runtimeConfig, provisionState) {
++	return {
++		...shouldCreateCloudflareOutput(runtimeConfig, provisionState) ? {
++			cloudflare: artifacts.runtimeModuleFiles.cloudflare,
++			"cloudflare-definition-defaults": artifacts.definitionDefaultsFile
++		} : {},
++		...shouldCreateVercelOutput(runtimeConfig) ? {
++			vercel: artifacts.runtimeModuleFiles.vercel,
++			"vercel-definition-defaults": artifacts.definitionDefaultsFile
++		} : {}
++	};
++}
++function registerSupportedProviderRuntimeModules(providerOutput, artifacts, runtimeConfig, provisionState) {
++	registerProviderRuntimeModules(providerOutput, productName, getSupportedProviderRuntimeModules(artifacts, runtimeConfig, provisionState));
++}
++async function generateProviderOutputs(options) {
++	const artifacts = options.artifacts ?? await prepareProviderOutputs(options);
++	const provisionState = readProvisionStateSync(options.rootDir);
++	registerSupportedProviderRuntimeModules(options.providerOutput, artifacts, options.runtimeConfig, provisionState);
++	const writeOptions = {
++		artifacts,
++		provisionState,
++		...options
++	};
++	await writeProviderDeploymentOutputs({
++		clientOutDir: options.clientOutDir,
++		cloudflare: shouldCreateCloudflareOutput(options.runtimeConfig, provisionState) ? createCloudflareOutput(writeOptions) : void 0,
++		cleanup: { cloudflare: () => {
++			return {
++				...!Object.entries(options.providerOutput?.runtimeModuleFilesByProduct ?? {}).some(([product, modules]) => product !== productName && Boolean(modules?.cloudflare)) ? { fileNames: ["index.js"] } : {},
++				wranglerConfigOwnership: { keys: ["d1_databases"] }
++			};
++		} },
++		rootDir: options.rootDir,
++		vercel: shouldCreateVercelOutput(options.runtimeConfig) ? createVercelOutput(writeOptions) : void 0
++	});
++	return artifacts;
++}
++async function prepareProviderOutputs(options) {
++	const artifacts = await writeProviderEntries(options.rootDir, options.runtimeConfig);
++	registerSupportedProviderRuntimeModules(options.providerOutput, artifacts, options.runtimeConfig, readProvisionStateSync(options.rootDir));
++	return artifacts;
++}
++//#endregion
++//#region ../internal/src/provision.ts
++function resolveCloudflareProvisionConfig(env) {
++	const accountId = trimmedEnv(env.CLOUDFLARE_ACCOUNT_ID);
++	const token = trimmedEnv(env.CLOUDFLARE_API_TOKEN);
++	if (!accountId || !token) return;
++	return {
++		accountId,
++		token
++	};
++}
++function createJsonClient(baseURL, headers, fetchImpl, baseQuery) {
++	return async function request(path, options = {}) {
++		const url = new URL(`${baseURL}${path}`);
++		for (const [key, value] of Object.entries({
++			...baseQuery,
++			...options.query
++		})) url.searchParams.set(key, value);
++		const init = {
++			method: options.method ?? "GET",
++			headers: { ...headers }
++		};
++		if (typeof options.body !== "undefined") {
++			init.headers["content-type"] = "application/json";
++			init.body = JSON.stringify(options.body);
++		}
++		const response = await fetchImpl(url, init);
++		if (!response.ok) throw new Error(`Provision request failed: ${options.method ?? "GET"} ${path} (${response.status}).`);
++		return await response.json();
++	};
++}
++function createCloudflareProvisionClient(config, fetchImpl = globalThis.fetch) {
++	const client = createJsonClient(`https://api.cloudflare.com/client/v4/accounts/${config.accountId}`, { authorization: `Bearer ${config.token}` }, fetchImpl);
++	return (path, options) => client(path, options);
++}
++function trimmedEnv(value) {
++	const trimmed = value?.trim();
++	return trimmed ? trimmed : void 0;
++}
++//#endregion
++//#region src/provision.ts
++function planDatabases(rootDir, options) {
++	const config = resolveDBViteConfig(options, rootDir);
++	if (!config) return [];
++	return config.databaseNames.flatMap((definition) => {
++		const cloudflare = config.databases[definition]?.cloudflare;
++		const databaseName = resolveConfigValue(cloudflare?.databaseName);
++		return databaseName ? [{
++			definition,
++			databaseName
++		}] : [];
++	});
++}
++function createDatabaseProvisionStep(resolveRootDir, options) {
++	return {
++		id: "database:cloudflare-d1",
++		provider: "cloudflare",
++		async plan(context) {
++			const config = resolveCloudflareProvisionConfig(context.env);
++			if (!config) {
++				context.logger.warn("database: skipping Cloudflare D1, missing CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN.");
++				return [];
++			}
++			const planned = planDatabases(resolveRootDir(), options);
++			if (!planned.length) return [];
++			const request = createCloudflareProvisionClient(config, context.fetch);
++			const listed = await request("/d1/database");
++			const idByName = new Map((listed.result ?? []).filter((database) => Boolean(database.name && database.uuid)).map((database) => [database.name, database.uuid]));
++			return planned.map(({ definition, databaseName }) => {
++				const existingId = idByName.get(databaseName);
++				return {
++					kind: "cloudflare-d1",
++					name: databaseName,
++					exists: Boolean(existingId),
++					apply: async () => {
++						let id = existingId;
++						if (!id) id = (await request("/d1/database", {
++							method: "POST",
++							body: { name: databaseName }
++						})).result?.uuid;
++						return id ? { ids: { cloudflare: { d1: { [definition]: id } } } } : {};
++					}
++				};
++			});
++		}
++	};
++}
++//#endregion
++//#region src/vite.ts
++const DB_VIRTUAL_SCHEMA_ID = "#vitehub/database/schema";
++const DB_VIRTUAL_DATABASES_ID = "#vitehub/database/databases";
++const DB_VIRTUAL_DEFINITION_DEFAULTS_ID = "#vitehub/database/definition-defaults";
++const DB_VITE_PLUGIN_NAME = "@vite-hub/database/vite";
++const DB_INTERNAL_VIRTUAL_SCHEMA_ID = "virtual:vitehub/database/schema";
++const DB_INTERNAL_VIRTUAL_DATABASES_ID = "virtual:vitehub/database/databases";
++const RESOLVED_DB_VIRTUAL_SCHEMA_ID = `\0${DB_VIRTUAL_SCHEMA_ID}`;
++const RESOLVED_DB_VIRTUAL_DATABASES_ID = `\0${DB_VIRTUAL_DATABASES_ID}`;
++const RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID = `\0${DB_VIRTUAL_DEFINITION_DEFAULTS_ID}`;
++const DB_DRIZZLE_ENTRY_PATTERN = /(?:^|\/)(?:@vite-hub\/database|database)\/dist\/drizzle\.js$/;
++const mergeNoExternal = createNoExternalMerger(dbPackageName);
++function resolveDatabaseVirtualId(id) {
++	if (id === "#vitehub/database/schema" || id === DB_INTERNAL_VIRTUAL_SCHEMA_ID) return RESOLVED_DB_VIRTUAL_SCHEMA_ID;
++	if (id === "#vitehub/database/databases" || id === DB_INTERNAL_VIRTUAL_DATABASES_ID) return RESOLVED_DB_VIRTUAL_DATABASES_ID;
++	if (id === DB_VIRTUAL_DEFINITION_DEFAULTS_ID) return RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID;
++}
++function rewriteDrizzleVirtualImports(code) {
++	return code.replaceAll(DB_VIRTUAL_SCHEMA_ID, DB_INTERNAL_VIRTUAL_SCHEMA_ID).replaceAll(DB_VIRTUAL_DATABASES_ID, DB_INTERNAL_VIRTUAL_DATABASES_ID);
++}
++function renderSchemaModule(config) {
++	if (!config?.databaseNames.length) return "const schema = {}\nexport { schema }\nexport default schema\n";
++	const defaultName = config.databaseNames.includes("default") ? "default" : config.databaseNames[0];
++	return [
++		`export * from ${JSON.stringify(config.generatedSchemaFilesByDatabase[defaultName])}`,
++		`export { default, schema } from ${JSON.stringify(config.generatedSchemaFilesByDatabase[defaultName])}`,
++		""
++	].join("\n");
++}
++function renderDatabasesModule(config) {
++	if (!config?.databaseNames.length) return "export const databases = {}\nexport default databases\n";
++	const imports = config.definitions.map((definition, index) => [`import definition_${index} from ${JSON.stringify(definition.handler)}`, `import schema_${index} from ${JSON.stringify(config.generatedSchemaFilesByDatabase[definition.name])}`].join("\n"));
++	const entries = config.definitions.map((definition, index) => [
++		`  ${JSON.stringify(definition.name)}: {`,
++		`    config: ${renderDatabaseConfigExpression(definition.name, config, `definition_${index}`)},`,
++		`    schema: schema_${index},`,
++		"  },"
++	].join("\n"));
++	return [
++		...imports,
++		"",
++		"export const databases = {",
++		...entries,
++		"}",
++		"export default databases",
++		""
++	].join("\n");
++}
++function hubDb(options) {
++	let providerArtifacts;
++	let providerOutput;
++	let resolved;
++	let runtimeConfig;
++	let serverDirs;
++	function resolvedOptions() {
++		return resolved?.database ?? options;
++	}
++	async function refreshRuntimeConfig() {
++		if (!resolved) return;
++		runtimeConfig = resolveDBViteConfig(resolvedOptions(), resolved.root, { serverDirs });
++		if (runtimeConfig) await writeGeneratedDatabaseArtifacts(runtimeConfig);
++		return runtimeConfig;
++	}
++	return {
++		name: DB_VITE_PLUGIN_NAME,
++		api: {
++			getConfig: () => runtimeConfig,
++			refresh: refreshRuntimeConfig
++		},
++		vitehub: { cli: async () => {
++			const db = resolvedOptions();
++			if (db === false) return;
++			const contributor = createDbCliContributor(db?.cli, refreshRuntimeConfig);
++			const provision = [createDatabaseProvisionStep(() => resolved?.root ?? process.cwd(), db)];
++			return contributor ? {
++				...contributor,
++				provision
++			} : {
++				namespaces: [],
++				provision
++			};
++		} },
++		config(config, environment) {
++			serverDirs = config["__vitehubServerDirs"] ?? serverDirs;
++			const database = config.database ?? options;
++			if (environment.command === "serve" && database && typeof database === "object" && database.remote === true) process.env.VITEHUB_DATABASE_REMOTE = "true";
++		},
++		async configResolved(config) {
++			resolved = config;
++			providerOutput = useComposedProviderOutput(config);
++			await refreshRuntimeConfig();
++		},
++		configEnvironment(name, config) {
++			if (!isServerEnvironment(name, config)) return;
++			return { resolve: { noExternal: mergeNoExternal(config.resolve?.noExternal) } };
++		},
++		buildStart() {
++			resetComposedProviderOutput(providerOutput);
++		},
++		async handleHotUpdate(context) {
++			if (!runtimeConfig) return;
++			const changedFile = normalize(context.file);
++			if (!runtimeConfig.definitions.some((definition) => normalize(definition.handler) === changedFile)) return;
++			await refreshRuntimeConfig();
++			const schemaModule = context.server.moduleGraph.getModuleById(RESOLVED_DB_VIRTUAL_SCHEMA_ID);
++			const databasesModule = context.server.moduleGraph.getModuleById(RESOLVED_DB_VIRTUAL_DATABASES_ID);
++			if (schemaModule) context.server.moduleGraph.invalidateModule(schemaModule);
++			if (databasesModule) context.server.moduleGraph.invalidateModule(databasesModule);
++		},
++		async buildEnd() {
++			if (!resolved || !runtimeConfig || shouldSkipViteProviderBuild(resolved.command, getViteMode())) return;
++			await writeGeneratedDatabaseArtifacts(runtimeConfig);
++			providerArtifacts = await prepareProviderOutputs({
++				providerOutput,
++				rootDir: resolved.root,
++				runtimeConfig
++			});
++		},
++		resolveId(id) {
++			return resolveDatabaseVirtualId(id);
++		},
++		transform(code, id) {
++			if (DB_DRIZZLE_ENTRY_PATTERN.test(normalize(id))) return rewriteDrizzleVirtualImports(code);
++		},
++		load(id) {
++			if (id === RESOLVED_DB_VIRTUAL_SCHEMA_ID) return renderSchemaModule(runtimeConfig);
++			if (id === RESOLVED_DB_VIRTUAL_DATABASES_ID) return renderDatabasesModule(runtimeConfig);
++			if (id === RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID || normalize(id).endsWith("/@vite-hub/database/dist/runtime/definition-defaults.js")) {
++				const options = resolvedOptions();
++				return `export default ${JSON.stringify({
++					...options && options.driver === "d1" ? { cloudflare: {
++						binding: options.binding,
++						...options.remote === true && resolved?.command === "serve" ? { http: true } : {}
++					} } : {},
++					...options && options.connection ? { connection: options.connection } : {}
++				})}\n`;
++			}
++		},
++		async closeBundle() {
++			if (!resolved || !runtimeConfig || shouldSkipViteProviderBuild(resolved.command, getViteMode())) return;
++			await writeGeneratedDatabaseArtifacts(runtimeConfig);
++			await generateProviderOutputs({
++				artifacts: providerArtifacts,
++				clientOutDir: resolved.build.outDir,
++				providerOutput,
++				rootDir: resolved.root,
++				runtimeConfig,
++				serverFunctionName: resolveNitroVercelFunctionName(resolved, "database")
++			});
++		}
++	};
++}
++//#endregion
++export { mergeCloudflareD1Bindings as a, hubDb as i, DB_VIRTUAL_SCHEMA_ID as n, resolveCloudflareD1Binding as o, DB_VITE_PLUGIN_NAME as r, resolveViteHubProjectRoot as s, DB_VIRTUAL_DATABASES_ID as t };
+diff --git a/dist/vite-wjxBbGkz.js b/dist/vite-wjxBbGkz.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..b1506ecc360b239de3eb6afb8f396ea1378a8f72
+--- /dev/null
++++ b/dist/vite-wjxBbGkz.js
+@@ -0,0 +1,1460 @@
++import { createDbCliContributor } from "./cli.js";
++import { a as createImportPath, i as computePackageDir, n as resolveDBViteConfig, o as ensureGeneratedDir, s as resolveRuntimeModule$1 } from "./config-D4O1BX9H.js";
++import { n as renderConfigValueExpression, r as resolveConfigValue } from "./config-value-GbX6yaWX.js";
++import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
++import { dirname as dirname$1, normalize, relative as relative$1, resolve as resolve$1 } from "pathe";
++import { existsSync, readFileSync, statSync } from "node:fs";
++import { cp, mkdir, readFile, readdir, rm, rmdir, stat, writeFile } from "node:fs/promises";
++import { fileURLToPath } from "node:url";
++import { build } from "esbuild";
++//#region ../internal/src/build/vite.ts
++const projectRootDirectoryMarkers = [
++	["server", "agents"],
++	["server", "browsers"],
++	["server", "schedules"],
++	["server", "templates"],
++	["server", "workspaces"]
++];
++const projectRootDefinitionFileMarkers = [
++	".ts",
++	".mts",
++	".cts",
++	".js",
++	".mjs",
++	".cjs"
++].flatMap((extension) => [["server", `email${extension}`], [`server.email${extension}`]]);
++const projectRootFileMarkers = [["package.json"]];
++function createNoExternalMerger(packageName) {
++	return (current) => {
++		if (current === true) return true;
++		if (!current) return [packageName];
++		const values = Array.isArray(current) ? current : [current];
++		return values.includes(packageName) ? values : [...values, packageName];
++	};
++}
++function isServerEnvironment(name, config) {
++	return name === "ssr" || config.consumer === "server";
++}
++function includesNitroVitePlugin(value) {
++	if (Array.isArray(value)) return value.some(includesNitroVitePlugin);
++	if (!value || typeof value !== "object") return false;
++	return "name" in value && value.name === "nitro:main";
++}
++function hasNitroConfigContext(config) {
++	return config["__vitehubNitroConfigContext"] === true || includesNitroVitePlugin(config.plugins);
++}
++function resolveNitroVercelFunctionName(config, product, env = process.env) {
++	const preset = config.nitro?.preset || env.NITRO_PRESET || env.SERVER_PRESET;
++	const nitro = Boolean(preset) || hasNitroConfigContext(config);
++	const clientOutDir = config.environments?.client?.build?.outDir;
++	const vercel = preset ? preset.startsWith("vercel") : env.VITEHUB_HOSTING === "vercel" || Boolean(env.VERCEL) || Boolean(clientOutDir && /(^|[/\\])\.vercel[/\\]output([/\\]|$)/.test(clientOutDir));
++	return nitro && vercel ? `__${product}.func` : void 0;
++}
++function shouldSkipViteProviderBuild(command, mode) {
++	return command === "serve" || mode === "e2e";
++}
++function resolveViteHubProjectRoot(root, options = {}) {
++	const resolvedRoot = resolve(root);
++	if (options.projectRoot) return resolve(resolvedRoot, options.projectRoot);
++	if (basename(resolvedRoot) === "app") {
++		const parent = dirname(resolvedRoot);
++		if (hasProjectRootDirectoryMarker(parent) || hasProjectRootDefinitionFileMarker(parent)) return parent;
++	}
++	let current = resolvedRoot;
++	while (true) {
++		if (hasProjectRootMarker(current)) return current;
++		const parent = dirname(current);
++		if (parent === current) return resolvedRoot;
++		current = parent;
++	}
++}
++function hasProjectRootDirectoryMarker(root) {
++	for (const marker of projectRootDirectoryMarkers) try {
++		if (statSync(resolve(root, ...marker)).isDirectory()) return true;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++	}
++	return false;
++}
++function hasProjectRootMarker(root) {
++	if (hasProjectRootDirectoryMarker(root)) return true;
++	if (hasProjectRootDefinitionFileMarker(root)) return true;
++	for (const marker of projectRootFileMarkers) try {
++		if (statSync(resolve(root, ...marker)).isFile()) return true;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++	}
++	return false;
++}
++function hasProjectRootDefinitionFileMarker(root) {
++	for (const marker of projectRootDefinitionFileMarkers) try {
++		if (statSync(resolve(root, ...marker)).isFile()) return true;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++	}
++	return false;
++}
++//#endregion
++//#region src/internal/cloudflare.ts
++function resolveProvisionedD1Id(provisionState, name) {
++	return provisionState?.cloudflare?.d1?.[name];
++}
++function resolveCloudflareD1BindingName(database, binding) {
++	const trimmed = typeof binding === "string" ? binding.trim() : "";
++	if (trimmed) return trimmed;
++	if (database === "default") return "DB";
++	return `DB_${database.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").replace(/_+/g, "_").toUpperCase() || "DATABASE"}`;
++}
++function resolveDatabaseId$1(config, name, provisionState) {
++	return resolveConfigValue(config.databases[name]?.cloudflare?.databaseId) ?? resolveProvisionedD1Id(provisionState, name);
++}
++function createUnresolvedBinding(name, binding, database, reason) {
++	const databaseName = resolveConfigValue(database.databaseName);
++	const previewDatabaseId = resolveConfigValue(database.previewDatabaseId);
++	return {
++		binding,
++		database: name,
++		...databaseName ? { databaseName } : {},
++		...database.migrationsDir ? { migrationsDir: database.migrationsDir } : {},
++		...database.migrationsTable ? { migrationsTable: database.migrationsTable } : {},
++		...previewDatabaseId ? { previewDatabaseId } : {},
++		reason
++	};
++}
++function resolveCloudflareD1Binding(input, options = {}) {
++	const database = input.database?.trim() || "default";
++	const bindingName = resolveCloudflareD1BindingName(database, input.binding);
++	const databaseId = resolveConfigValue(input.databaseId) ?? resolveProvisionedD1Id(options.provisionState, database);
++	const databaseName = resolveConfigValue(input.databaseName);
++	const previewDatabaseId = resolveConfigValue(input.previewDatabaseId);
++	if (!databaseId) return {
++		bindingName,
++		unresolved: createUnresolvedBinding(database, bindingName, input, "missing-database-id")
++	};
++	if (!databaseName) return {
++		bindingName,
++		unresolved: createUnresolvedBinding(database, bindingName, input, "missing-database-name")
++	};
++	return {
++		bindingName,
++		d1Database: {
++			binding: bindingName,
++			database_id: databaseId,
++			database_name: databaseName,
++			...input.migrationsDir ? { migrations_dir: input.migrationsDir } : {},
++			...input.migrationsTable ? { migrations_table: input.migrationsTable } : {},
++			...previewDatabaseId ? { preview_database_id: previewDatabaseId } : {}
++		}
++	};
++}
++function resolveCloudflareD1Bindings(config, options = {}) {
++	const d1Databases = [];
++	const unresolved = [];
++	for (const name of config.databaseNames) {
++		const database = config.databases[name]?.cloudflare;
++		if (!database) continue;
++		const projection = resolveCloudflareD1Binding({
++			database: name,
++			binding: database.binding,
++			databaseId: resolveDatabaseId$1(config, name, options.provisionState),
++			databaseName: database.databaseName,
++			migrationsDir: database.migrationsDir,
++			migrationsTable: database.migrationsTable,
++			previewDatabaseId: database.previewDatabaseId
++		});
++		if (projection.d1Database) d1Databases.push(projection.d1Database);
++		if (projection.unresolved) unresolved.push(projection.unresolved);
++	}
++	return {
++		d1Databases,
++		unresolved
++	};
++}
++function mergeCloudflareD1Bindings(current, generated) {
++	const bindings = [];
++	const bindingNames = /* @__PURE__ */ new Set();
++	if (Array.isArray(current)) {
++		for (const binding of current) if (isCloudflareD1WranglerBinding(binding) && !bindingNames.has(binding.binding)) {
++			bindings.push({ ...binding });
++			bindingNames.add(binding.binding);
++		}
++	}
++	for (const binding of generated) {
++		const index = bindings.findIndex((item) => item.binding === binding.binding);
++		if (index === -1) bindings.push(binding);
++		else bindings[index] = { ...binding };
++	}
++	return bindings;
++}
++function isCloudflareD1WranglerBinding(value) {
++	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
++	const binding = value;
++	return typeof binding.binding === "string" && typeof binding.database_id === "string" && typeof binding.database_name === "string";
++}
++const VITEHUB_MODES = {
++	e2e: "e2e",
++	blob: "blob",
++	chat: "chat",
++	db: "db",
++	env: "env",
++	kv: "kv",
++	queue: "queue",
++	schedule: "schedule",
++	sandbox: "sandbox",
++	workspace: "workspace",
++	workflow: "workflow"
++};
++function isViteCli(argv) {
++	return argv.some((arg) => /(?:^|[/\\])vite(?:\.[cm]?js)?$/.test(arg) || arg === "vite");
++}
++function getViteCliMode(argv = process.argv) {
++	if (!isViteCli(argv)) return;
++	const modes = new Set(Object.values(VITEHUB_MODES));
++	for (let index = 0; index < argv.length; index += 1) {
++		const arg = argv[index];
++		const mode = arg === "--mode" || arg === "-m" ? argv[index + 1] : arg.startsWith("--mode=") ? arg.slice(7) : void 0;
++		if (mode && modes.has(mode)) return mode;
++	}
++}
++function getViteMode(env = process.env) {
++	return env["VITEHUB_VITE_MODE"] ?? getViteCliMode();
++}
++//#endregion
++//#region ../internal/src/build/client-output.ts
++function hasStaticIndex(clientDir) {
++	return existsSync(resolve$1(clientDir, "index.html"));
++}
++async function copyClientOutput(clientDir, targetDir) {
++	const resolvedClientDir = resolve$1(clientDir);
++	const resolvedTargetDir = resolve$1(targetDir);
++	if (resolvedClientDir === resolvedTargetDir) return;
++	await rm(resolvedTargetDir, {
++		force: true,
++		recursive: true
++	});
++	await mkdir(dirname$1(resolvedTargetDir), { recursive: true });
++	const targetRelativePath = relative$1(resolvedClientDir, resolvedTargetDir);
++	if (targetRelativePath && !targetRelativePath.startsWith("../")) {
++		const [targetRootEntry] = targetRelativePath.split("/", 1);
++		await mkdir(resolvedTargetDir, { recursive: true });
++		await Promise.all((await readdir(resolvedClientDir)).filter((entry) => entry !== targetRootEntry).map((entry) => cp(resolve$1(resolvedClientDir, entry), resolve$1(resolvedTargetDir, entry), { recursive: true })));
++		return;
++	}
++	await cp(resolvedClientDir, resolvedTargetDir, { recursive: true });
++}
++//#endregion
++//#region ../internal/src/build/provider-output-config.ts
++function isProviderJsonArray(value, ancestors) {
++	if (Object.getPrototypeOf(value) !== Array.prototype || ancestors.has(value)) return false;
++	if (Reflect.ownKeys(value).length !== value.length + 1) return false;
++	ancestors.add(value);
++	try {
++		for (let index = 0; index < value.length; index++) {
++			const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
++			if (!descriptor?.enumerable || !("value" in descriptor) || !isProviderJsonValue(descriptor.value, ancestors)) return false;
++		}
++		return true;
++	} finally {
++		ancestors.delete(value);
++	}
++}
++function isProviderJsonRecordValue(value, ancestors) {
++	const prototype = Object.getPrototypeOf(value);
++	if (prototype !== Object.prototype && prototype !== null || ancestors.has(value)) return false;
++	ancestors.add(value);
++	try {
++		return Reflect.ownKeys(value).every((key) => {
++			if (typeof key !== "string") return false;
++			const descriptor = Object.getOwnPropertyDescriptor(value, key);
++			return descriptor?.enumerable === true && "value" in descriptor && isProviderJsonValue(descriptor.value, ancestors);
++		});
++	} finally {
++		ancestors.delete(value);
++	}
++}
++function isProviderJsonValue(value, ancestors) {
++	if (value === null || typeof value === "boolean" || typeof value === "string") return true;
++	if (typeof value === "number") return Number.isFinite(value);
++	if (Array.isArray(value)) return isProviderJsonArray(value, ancestors);
++	return typeof value === "object" && isProviderJsonRecordValue(value, ancestors);
++}
++function isProviderJsonRecord(value) {
++	try {
++		return typeof value === "object" && value !== null && !Array.isArray(value) && isProviderJsonRecordValue(value, /* @__PURE__ */ new Set());
++	} catch {
++		return false;
++	}
++}
++function assertProviderJsonRecord(value) {
++	if (!isProviderJsonRecord(value)) throw new TypeError("[vitehub] Provider output config must be a JSON object.");
++}
++function isFileNotFoundError(error) {
++	return error instanceof Error && "code" in error && error.code === "ENOENT";
++}
++async function readProviderJsonRecord(file) {
++	try {
++		const parsed = JSON.parse(await readFile(file, "utf8"));
++		assertProviderJsonRecord(parsed);
++		return parsed;
++	} catch (error) {
++		if (isFileNotFoundError(error)) return;
++		throw error;
++	}
++}
++function deleteOwnedFields(value, ownership) {
++	const next = { ...value };
++	for (const key of ownership.keys ?? []) delete next[key];
++	for (const field of Object.keys(ownership.arrays ?? {})) delete next[field];
++	return next;
++}
++function getKeyedArrayEntryValue(value, key) {
++	if (key === void 0) return value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string" ? value : void 0;
++	if (!isProviderJsonRecord(value)) return;
++	const entryValue = value[key];
++	return entryValue === null || typeof entryValue === "boolean" || typeof entryValue === "number" || typeof entryValue === "string" ? entryValue : void 0;
++}
++function preserveUnownedKeyedArrayEntries(value, ownership, replacements = []) {
++	const current = Array.isArray(value) ? value : [];
++	const replacementKeys = replacements.flatMap((entry) => {
++		const key = getKeyedArrayEntryValue(entry, ownership.key);
++		return key === void 0 ? [] : [key];
++	});
++	const ownedKeys = new Set([...ownership.values ?? [], ...replacementKeys]);
++	return current.filter((entry) => {
++		const key = getKeyedArrayEntryValue(entry, ownership.key);
++		return key === void 0 || !ownedKeys.has(key);
++	});
++}
++function mergeOwnedArrays(existing, value, arrays) {
++	const next = { ...value };
++	for (const [field, ownership] of Object.entries(arrays ?? {})) {
++		const incoming = Array.isArray(value[field]) ? value[field] : [];
++		const merged = [...preserveUnownedKeyedArrayEntries(existing[field], ownership, incoming), ...incoming];
++		if (merged.length) next[field] = merged;
++		else delete next[field];
++	}
++	return next;
++}
++async function persistProviderJsonRecord(file, value, removeIfEmpty) {
++	if (removeIfEmpty && !Object.keys(value).length) {
++		await rm(file, { force: true });
++		return;
++	}
++	await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
++}
++async function writeProviderOutputConfig(file, value, ownership = {}, options = {}) {
++	await persistProviderJsonRecord(file, mergeProviderOutputConfig(await readProviderJsonRecord(file) ?? {}, value, ownership), options.removeIfEmpty === true);
++}
++function mergeProviderOutputConfig(existing, value, ownership = {}) {
++	assertProviderJsonRecord(existing);
++	assertProviderJsonRecord(value);
++	return {
++		...deleteOwnedFields(existing, ownership),
++		...mergeOwnedArrays(existing, value, ownership.arrays)
++	};
++}
++function stringifyProviderOutputConfig(value) {
++	assertProviderJsonRecord(value);
++	return JSON.stringify(value, null, 2);
++}
++async function cleanProviderOutputConfig(file, ownership) {
++	if (!ownership.keys?.length && !Object.keys(ownership.arrays ?? {}).length) return;
++	const existing = await readProviderJsonRecord(file);
++	if (!existing) return;
++	const next = deleteOwnedFields(existing, ownership);
++	let changed = (ownership.keys ?? []).some((key) => key in existing);
++	for (const [field, arrayOwnership] of Object.entries(ownership.arrays ?? {})) {
++		if (!(field in existing)) continue;
++		const current = existing[field];
++		const preserved = preserveUnownedKeyedArrayEntries(current, arrayOwnership);
++		changed ||= !Array.isArray(current) || preserved.length !== current.length || preserved.length === 0;
++		if (preserved.length) next[field] = preserved;
++	}
++	if (!changed) return;
++	await persistProviderJsonRecord(file, next, true);
++}
++//#endregion
++//#region ../internal/src/build/user-entry.ts
++function toSafeAppName(rootDir) {
++	return basename(rootDir).replace(/[^a-z0-9-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
++}
++const DEFAULT_ENTRY_NAMES = [
++	"server.ts",
++	"server.mts",
++	"server.js",
++	"server.mjs",
++	"worker.ts",
++	"worker.mts",
++	"worker.js",
++	"worker.mjs"
++];
++function resolveUserAppEntry(rootDir, options = {}) {
++	const names = options.names ?? DEFAULT_ENTRY_NAMES;
++	const srcSubdir = options.srcSubdir ?? "src";
++	return names.map((name) => resolve(rootDir, srcSubdir, name)).find(existsSync);
++}
++//#endregion
++//#region ../internal/src/build/cloudflare.ts
++const defaultCloudflareCompatibilityDate = "2026-04-20";
++function createDefaultCloudflareOutputRoot(rootDir) {
++	return resolve(rootDir, "dist", toSafeAppName(rootDir));
++}
++async function writeCloudflareWranglerConfig(options) {
++	const outputRoot = options.outputRoot ?? createDefaultCloudflareOutputRoot(options.rootDir);
++	const configFile = resolve(outputRoot, "wrangler.json");
++	if (!options.wranglerConfig) {
++		await cleanProviderOutputConfig(configFile, options.wranglerConfigOwnership ?? {});
++		return;
++	}
++	await mkdir(outputRoot, { recursive: true });
++	await writeProviderOutputConfig(configFile, options.wranglerConfig, options.wranglerConfigOwnership, { removeIfEmpty: true });
++}
++//#endregion
++//#region ../internal/src/build/esbuild.ts
++const viteRawNamespace = "vitehub-vite-raw";
++const viteMarkdownTemplateNamespace = "vitehub-markdown-template";
++const markdownTemplateFileSuffix = ".template.md";
++const markdownTemplateModuleQuery = "markdown-template";
++const markdownTemplateRegistryId = "#vitehub/templates";
++const markdownTemplateRegistryPath = ".vitehub/markdown-template/templates.mjs";
++const skipMarkdownTemplateResolve = "vitehubSkipMarkdownTemplateResolve";
++const markdownTemplateRuntimeSpecifier = "@vite-hub/markdown-template";
++function resolveEsbuildAliases(aliases) {
++	if (!aliases) return;
++	return Object.fromEntries(Object.entries(aliases).filter(([specifier]) => !specifier.endsWith("/")));
++}
++function stripMarkdownCode(template) {
++	let fence;
++	let inList = false;
++	let previousLineBlank = true;
++	return template.split("\n").map((line) => {
++		const content = line.replace(/^(?: {0,3}> ?)+/, "");
++		if (!fence) {
++			const listIndented = inList && /^ {4}(?:`{3,}|~{3,})/.test(content);
++			const opening = (listIndented ? content.slice(4) : content).match(/^ {0,3}(`{3,}|~{3,})/);
++			if (!opening) {
++				if (/^ {0,3}(?:[-+*]|\d+[.)])\s+/.test(content)) inList = true;
++				else if (content.trim() && !/^ {2,}/.test(content)) inList = false;
++				const indentedCode = !inList && previousLineBlank && /^(?: {4}|\t)/.test(content) || inList && previousLineBlank && /^(?: {8}| {4}\t|\t{2})/.test(content);
++				previousLineBlank = content.trim() === "";
++				return indentedCode ? "" : line;
++			}
++			fence = {
++				marker: opening[1][0],
++				length: opening[1].length,
++				listIndented
++			};
++			previousLineBlank = false;
++			return "";
++		}
++		const closing = (fence.listIndented ? content.replace(/^ {4}/, "") : content).match(/^ {0,3}(`+|~+)\s*$/)?.[1];
++		if (closing?.[0] === fence.marker && closing.length >= fence.length) fence = void 0;
++		previousLineBlank = false;
++		return "";
++	}).join("\n");
++}
++function extractMarkdownTemplateImportSpecifiers(template) {
++	const visible = stripMarkdownCode(template).replace(/(`+)[\s\S]*?\1/g, "").replace(/(!?\[[^\]]*\])\([^)]*\)/g, "$1").replace(/^ {0,3}\[[^\]]+\]:\s*\S+/gm, "").replace(/<[^>]*>/g, "");
++	const specifiers = /* @__PURE__ */ new Set();
++	for (const match of visible.matchAll(/@(\.\.?\/[^\s<>{}[\]]+)/g)) {
++		const token = match[1];
++		const trailing = token.match(/[.,;:!?)]*$/)?.[0] || "";
++		specifiers.add(token.slice(0, token.length - trailing.length));
++	}
++	return [...specifiers];
++}
++function parseMarkdownTemplateRequest(id) {
++	const queryIndex = id.indexOf("?");
++	const path = id.split(/[?#]/, 1)[0];
++	if (queryIndex === -1) return path.endsWith(markdownTemplateFileSuffix) ? { path } : void 0;
++	const query = id.slice(queryIndex + 1).split("#", 1)[0];
++	if (!new URLSearchParams(query).has(markdownTemplateModuleQuery)) return;
++	return { path };
++}
++function renderMarkdownTemplateModule(template, sourceId, imports = {}) {
++	return [
++		`import { renderMarkdownTemplate as vitehubRenderMarkdownTemplate } from ${JSON.stringify(markdownTemplateRuntimeSpecifier)}`,
++		`const vitehubMarkdownTemplate = ${JSON.stringify(template)}`,
++		`const vitehubMarkdownTemplateSourceId = ${JSON.stringify(sourceId)}`,
++		`const vitehubMarkdownTemplateImports = ${JSON.stringify(imports)}`,
++		"export default function render(data = {}) {",
++		"  return vitehubRenderMarkdownTemplate(vitehubMarkdownTemplate, { data, sourceId: vitehubMarkdownTemplateSourceId, resolveImport: (specifier, importer) => vitehubMarkdownTemplateImports[`${importer}\\0${specifier}`] })",
++		"}",
++		""
++	].join("\n");
++}
++function hasViteRawQuery(path) {
++	const queryIndex = path.indexOf("?");
++	return queryIndex !== -1 && /(?:^|&)raw(?:&|$)/.test(path.slice(queryIndex + 1));
++}
++async function resolveViteRawSpecifier(path, rootDir) {
++	if (path.startsWith("/@fs/")) return path.slice(5);
++	if (!rootDir || !path.startsWith("/")) return path;
++	const rootRelativePath = path.slice(1);
++	const publicPath = resolve(rootDir, "public", rootRelativePath);
++	try {
++		await stat(publicPath);
++		return publicPath;
++	} catch (error) {
++		if (error.code !== "ENOENT") throw error;
++		return resolve(rootDir, rootRelativePath);
++	}
++}
++function createViteRawPlugin(rootDir, frameworkRuntime) {
++	return {
++		name: "vitehub-vite-raw",
++		setup(build) {
++			build.onResolve({
++				filter: /^@vite-hub\/markdown-template$/,
++				namespace: viteMarkdownTemplateNamespace
++			}, async (args) => {
++				if (!frameworkRuntime) return { path: fileURLToPath(import.meta.resolve(markdownTemplateRuntimeSpecifier)) };
++				return build.resolve("vite-hub/_internal/markdown-template", {
++					importer: args.importer,
++					kind: args.kind,
++					resolveDir: args.resolveDir
++				});
++			});
++			build.onResolve({ filter: /\?|\.template\.md$/ }, async (args) => {
++				if (args.pluginData?.[skipMarkdownTemplateResolve]) return;
++				const markdownTemplate = parseMarkdownTemplateRequest(args.path);
++				const raw = hasViteRawQuery(args.path);
++				if (!markdownTemplate && !raw) return;
++				const specifier = await resolveViteRawSpecifier(markdownTemplate?.path ?? args.path.slice(0, args.path.indexOf("?")), rootDir);
++				const resolved = await build.resolve(specifier, {
++					importer: args.importer,
++					kind: args.kind,
++					namespace: args.namespace,
++					pluginData: markdownTemplate ? {
++						...args.pluginData && typeof args.pluginData === "object" ? args.pluginData : {},
++						[skipMarkdownTemplateResolve]: true
++					} : args.pluginData,
++					resolveDir: args.resolveDir,
++					with: args.with
++				});
++				if (resolved.errors.length) return {
++					errors: resolved.errors,
++					warnings: resolved.warnings
++				};
++				if (resolved.external) return {
++					external: true,
++					namespace: resolved.namespace,
++					path: resolved.path,
++					pluginData: resolved.pluginData,
++					sideEffects: resolved.sideEffects,
++					suffix: resolved.suffix,
++					warnings: resolved.warnings
++				};
++				if (resolved.namespace !== "file") return {
++					errors: [{ text: markdownTemplate ? `[vitehub] Markdown template fallback cannot load ${JSON.stringify(args.path)} from the ${JSON.stringify(resolved.namespace)} namespace. Handle this template import in a caller plugin.` : `[vitehub] Vite raw fallback cannot load ${JSON.stringify(args.path)} from the ${JSON.stringify(resolved.namespace)} namespace. Handle this raw import in a caller plugin.` }],
++					warnings: resolved.warnings
++				};
++				return {
++					namespace: markdownTemplate ? viteMarkdownTemplateNamespace : viteRawNamespace,
++					path: resolved.path,
++					pluginData: resolved.pluginData,
++					sideEffects: resolved.sideEffects,
++					suffix: resolved.suffix,
++					warnings: resolved.warnings
++				};
++			});
++			build.onLoad({
++				filter: /.*/,
++				namespace: viteRawNamespace
++			}, async (args) => ({
++				contents: await readFile(args.path),
++				loader: "text"
++			}));
++			build.onLoad({
++				filter: /.*/,
++				namespace: viteMarkdownTemplateNamespace
++			}, async (args) => ({
++				contents: await (async () => {
++					const template = await readFile(args.path, "utf8");
++					const imports = {};
++					const visited = new Set([args.path]);
++					const visit = async (source, importer) => {
++						for (const specifier of extractMarkdownTemplateImportSpecifiers(source)) {
++							const key = `${importer}\0${specifier}`;
++							if (imports[key]) continue;
++							const resolved = await build.resolve(specifier, {
++								importer,
++								kind: "import-statement",
++								pluginData: {
++									...args.pluginData && typeof args.pluginData === "object" ? args.pluginData : {},
++									[skipMarkdownTemplateResolve]: true
++								},
++								resolveDir: dirname(importer)
++							});
++							if (resolved.errors.length) return Promise.reject(new Error(resolved.errors.map((error) => error.text).join("\n")));
++							if (resolved.external || resolved.namespace !== "file") throw new Error(`[vitehub] Could not resolve Markdown template import ${JSON.stringify(specifier)} from ${JSON.stringify(importer)} to a file.`);
++							const imported = {
++								id: resolved.path,
++								template: await readFile(resolved.path, "utf8")
++							};
++							imports[key] = imported;
++							if (!visited.has(imported.id)) {
++								visited.add(imported.id);
++								await visit(imported.template, imported.id);
++							}
++						}
++					};
++					await visit(template, args.path);
++					return renderMarkdownTemplateModule(template, args.path, imports);
++				})(),
++				loader: "js",
++				resolveDir: dirname(args.path)
++			}));
++		}
++	};
++}
++async function bundleEsmEntry(entryFile, outfile, options = {}) {
++	const format = options.format || "esm";
++	const platform = options.platform || "neutral";
++	const markdownTemplateRoot = options.rootDir && resolveViteHubProjectRoot(options.rootDir);
++	const aliases = resolveEsbuildAliases({
++		...markdownTemplateRoot ? { [markdownTemplateRegistryId]: resolve(markdownTemplateRoot, markdownTemplateRegistryPath) } : {},
++		...options.alias
++	});
++	const frameworkRuntime = Object.keys(aliases || {}).some((specifier) => specifier === "vite-hub" || specifier.startsWith("vite-hub/"));
++	await build({
++		alias: aliases,
++		banner: options.banner || format === "esm" && platform === "node" ? { js: [options.banner, ...format === "esm" && platform === "node" ? [
++			"import { createRequire as __createRequire } from \"node:module\";",
++			"import { dirname as __vitehubDirname } from \"node:path\";",
++			"import { fileURLToPath as __vitehubFileURLToPath } from \"node:url\";",
++			"globalThis.require = __createRequire(import.meta.url);",
++			"globalThis.__filename = __vitehubFileURLToPath(import.meta.url);",
++			"globalThis.__dirname = __vitehubDirname(globalThis.__filename);"
++		] : []].filter(Boolean).join("\n") } : void 0,
++		bundle: true,
++		conditions: options.conditions ?? (platform === "node" ? ["node"] : void 0),
++		entryPoints: [entryFile],
++		external: options.external,
++		format,
++		logLevel: "silent",
++		mainFields: options.mainFields ?? (platform === "neutral" ? ["module", "main"] : void 0),
++		minifyIdentifiers: options.minifyIdentifiers,
++		outfile,
++		platform,
++		plugins: [...options.plugins ?? [], createViteRawPlugin(options.rootDir, frameworkRuntime)],
++		sourcemap: false,
++		target: "es2022",
++		write: true
++	});
++}
++//#endregion
++//#region ../internal/src/build/vercel-config.ts
++function createVercelConfigJson() {
++	return {
++		routes: [{ handle: "filesystem" }, {
++			src: "/(.*)",
++			dest: "/__server"
++		}],
++		version: 3
++	};
++}
++function createNodeFunctionConfig(extra = {}) {
++	return {
++		handler: "index.mjs",
++		launcherType: "Nodejs",
++		runtime: "nodejs22.x",
++		shouldAddHelpers: false,
++		supportsResponseStreaming: true,
++		...extra
++	};
++}
++//#endregion
++//#region ../internal/src/build/deployment-output.ts
++const composedProviderOutputKey = Symbol.for("vitehub.composedProviderOutput");
++const providerDeploymentOutputWrites = /* @__PURE__ */ new Map();
++function useComposedProviderOutput(config) {
++	const owner = config;
++	return owner[composedProviderOutputKey] ??= {
++		runtimeModuleFilesByProduct: {},
++		vercelRuntimePackagesByProduct: {}
++	};
++}
++function resetComposedProviderOutput(composed) {
++	if (composed) composed.runtimeModuleFilesByProduct = {};
++	if (composed) composed.vercelRuntimePackagesByProduct = {};
++}
++function registerProviderRuntimeModules(composed, product, runtimeModuleFiles) {
++	if (composed) composed.runtimeModuleFilesByProduct[product] = runtimeModuleFiles;
++}
++function getProviderRuntimeModule(composed, product, provider) {
++	return composed?.runtimeModuleFilesByProduct[product]?.[provider];
++}
++function resolveClientOutput(rootDir, clientOutDir) {
++	const clientDir = resolve(rootDir, clientOutDir);
++	return {
++		clientDir,
++		staticIndex: hasStaticIndex(clientDir)
++	};
++}
++function createDefaultCloudflareStaticOutputDir(rootDir) {
++	return resolve(rootDir, "dist", "client");
++}
++function createDefaultVercelOutputRoot(rootDir) {
++	return resolve(rootDir, ".vercel", "output");
++}
++function createDefaultNetlifyOutputRoot(rootDir) {
++	return resolve(rootDir, ".netlify", "v1");
++}
++function assertNetlifyFunctionName(functionName) {
++	if (!functionName || functionName.includes("\\") || functionName.split("/").some((part) => !part || part === "." || part === "..")) throw new Error(`Invalid Netlify function name: ${functionName}`);
++}
++function resolveNetlifyFunctionFile(functionsRoot, functionName) {
++	assertNetlifyFunctionName(functionName);
++	return resolve(functionsRoot, `${functionName}.mjs`);
++}
++async function appendNetlifyFunctionConfig(outfile, config) {
++	if (!config) return;
++	await writeFile(outfile, `${(await readFile(outfile, "utf8")).trimEnd()}\n\nexport const config = ${stringifyProviderOutputConfig(config)}\n`, "utf8");
++}
++async function writeCloudflareDeploymentOutput(options) {
++	const { clientDir, staticIndex } = resolveClientOutput(options.rootDir, options.clientOutDir);
++	const outputRoot = options.outputRoot ?? createDefaultCloudflareOutputRoot(options.rootDir);
++	const files = Object.entries(options.files ?? {});
++	const workerOutfile = options.bundleEntry ? resolve(outputRoot, options.bundleOutfileName ?? "index.js") : void 0;
++	if (workerOutfile && files.some(([fileName]) => resolve(outputRoot, fileName) === workerOutfile)) throw new Error(`Cloudflare output file conflicts with bundle outfile: ${workerOutfile}`);
++	await mkdir(outputRoot, { recursive: true });
++	const writes = [
++		writeCloudflareWranglerConfig({
++			outputRoot,
++			rootDir: options.rootDir,
++			wranglerConfig: options.wranglerConfig,
++			wranglerConfigOwnership: options.wranglerConfigOwnership ?? { keys: options.wranglerConfigKeys }
++		}),
++		options.bundleEntry && staticIndex ? copyClientOutput(clientDir, options.staticOutputDir ?? createDefaultCloudflareStaticOutputDir(options.rootDir)) : Promise.resolve(),
++		...files.map(([fileName, contents]) => writeFile(resolve(outputRoot, fileName), contents, "utf8"))
++	];
++	if (options.bundleEntry && workerOutfile) {
++		await rm(workerOutfile, {
++			force: true,
++			recursive: true
++		});
++		writes.push(bundleEsmEntry(options.bundleEntry, workerOutfile, {
++			...options.bundleOptions,
++			rootDir: options.rootDir
++		}));
++	}
++	await Promise.all(writes);
++}
++async function copyVercelClientOutput(rootDir, clientDir, staticOutputDir) {
++	const cloudflareOutputRoot = createDefaultCloudflareOutputRoot(rootDir);
++	const outputRelativePath = relative(clientDir, cloudflareOutputRoot);
++	const excludesCloudflareOutput = outputRelativePath && outputRelativePath !== ".." && !outputRelativePath.startsWith(`..${sep}`) && !isAbsolute(outputRelativePath);
++	await copyClientOutput(clientDir, staticOutputDir);
++	if (resolve(clientDir) === resolve(staticOutputDir) || !excludesCloudflareOutput) return;
++	try {
++		await readFile(resolve(cloudflareOutputRoot, "wrangler.json"));
++	} catch (error) {
++		if (error.code === "ENOENT") return;
++		throw error;
++	}
++	await rm(resolve(staticOutputDir, outputRelativePath), {
++		force: true,
++		recursive: true
++	});
++}
++async function writeVercelDeploymentOutput(options) {
++	const { clientDir, staticIndex } = resolveClientOutput(options.rootDir, options.clientOutDir);
++	const outputRoot = options.outputRoot ?? createDefaultVercelOutputRoot(options.rootDir);
++	const functionOutput = options.function ?? { kind: "root" };
++	const serverFunctionName = functionOutput.kind === "root" ? "__server.func" : functionOutput.name;
++	const config = options.config ?? (functionOutput.kind === "root" ? createVercelConfigJson() : {});
++	const serverDir = resolve(outputRoot, "functions", serverFunctionName);
++	const serverEntry = resolve(serverDir, "index.mjs");
++	await mkdir(serverDir, { recursive: true });
++	const staleFiles = (await readdir(serverDir)).filter((file) => file !== "node_modules");
++	await Promise.all(staleFiles.map((file) => rm(resolve(serverDir, file), {
++		force: true,
++		recursive: true
++	})));
++	await Promise.all([
++		bundleEsmEntry(options.bundleEntry, serverEntry, {
++			...options.bundleOptions,
++			rootDir: options.rootDir
++		}),
++		writeFile(resolve(serverDir, ".vc-config.json"), `${stringifyProviderOutputConfig(options.functionConfig ?? createNodeFunctionConfig())}\n`, "utf8"),
++		writeProviderOutputConfig(resolve(outputRoot, "config.json"), config, { keys: options.configKeys }),
++		staticIndex ? copyVercelClientOutput(options.rootDir, clientDir, options.staticOutputDir ?? resolve(outputRoot, "static")) : Promise.resolve()
++	]);
++}
++async function writeNetlifyDeploymentOutput(options) {
++	const outputRoot = options.outputRoot ?? createDefaultNetlifyOutputRoot(options.rootDir);
++	const functionsRoot = resolve(outputRoot, "functions");
++	const functionWrites = (options.functions ?? []).map(async (func) => {
++		const outfile = resolveNetlifyFunctionFile(functionsRoot, func.functionName);
++		await rm(outfile, {
++			force: true,
++			recursive: true
++		});
++		await mkdir(dirname(outfile), { recursive: true });
++		await bundleEsmEntry(func.bundleEntry, outfile, {
++			...func.bundleOptions,
++			minifyIdentifiers: func.config ? true : func.bundleOptions.minifyIdentifiers,
++			rootDir: options.rootDir
++		});
++		await appendNetlifyFunctionConfig(outfile, func.config);
++	});
++	await mkdir(outputRoot, { recursive: true });
++	await Promise.all([writeProviderOutputConfig(resolve(outputRoot, "config.json"), options.config ?? {}, { keys: options.configKeys }), ...functionWrites]);
++}
++async function cleanupCloudflareDeploymentOutput(rootDir, cleanupInput) {
++	const cleanup = typeof cleanupInput === "function" ? await cleanupInput() : cleanupInput;
++	const outputRoot = cleanup.outputRoot ?? createDefaultCloudflareOutputRoot(rootDir);
++	const writes = (cleanup.fileNames ?? []).map((fileName) => rm(resolve(outputRoot, fileName), {
++		force: true,
++		recursive: true
++	}));
++	writes.push(writeCloudflareWranglerConfig({
++		outputRoot,
++		rootDir,
++		wranglerConfigOwnership: cleanup.wranglerConfigOwnership
++	}));
++	await Promise.all(writes);
++	try {
++		await rmdir(outputRoot);
++	} catch (error) {
++		const code = error.code;
++		if (code !== "ENOENT" && code !== "ENOTEMPTY") throw error;
++	}
++}
++async function cleanupVercelDeploymentOutput(rootDir, cleanup) {
++	const outputRoot = cleanup.outputRoot ?? createDefaultVercelOutputRoot(rootDir);
++	const writes = [];
++	if (cleanup.serverFunctionName) writes.push(rm(resolve(outputRoot, "functions", cleanup.serverFunctionName), {
++		force: true,
++		recursive: true
++	}));
++	writes.push(cleanProviderOutputConfig(resolve(outputRoot, "config.json"), { keys: cleanup.configKeys }));
++	await Promise.all(writes);
++}
++async function cleanupVercelDeploymentOutputs(rootDir, cleanup) {
++	await Promise.all((Array.isArray(cleanup) ? cleanup : [cleanup]).map((item) => cleanupVercelDeploymentOutput(rootDir, item)));
++}
++async function cleanupNetlifyDeploymentOutput(rootDir, cleanup) {
++	const outputRoot = cleanup.outputRoot ?? createDefaultNetlifyOutputRoot(rootDir);
++	const functionsRoot = resolve(outputRoot, "functions");
++	const writes = (cleanup.functionNames ?? []).map((functionName) => rm(resolveNetlifyFunctionFile(functionsRoot, functionName), {
++		force: true,
++		recursive: true
++	}));
++	writes.push(cleanProviderOutputConfig(resolve(outputRoot, "config.json"), { keys: cleanup.configKeys }));
++	await Promise.all(writes);
++}
++async function writeProviderDeploymentOutputsNow(options) {
++	const writes = [];
++	if (options.cloudflare) writes.push(writeCloudflareDeploymentOutput({
++		...options.cloudflare,
++		clientOutDir: options.clientOutDir,
++		rootDir: options.rootDir
++	}));
++	else if (options.cleanup?.cloudflare) writes.push(cleanupCloudflareDeploymentOutput(options.rootDir, options.cleanup.cloudflare));
++	if (options.netlify) writes.push(writeNetlifyDeploymentOutput({
++		...options.netlify,
++		clientOutDir: options.clientOutDir,
++		rootDir: options.rootDir
++	}));
++	else if (options.cleanup?.netlify) writes.push(cleanupNetlifyDeploymentOutput(options.rootDir, options.cleanup.netlify));
++	if (options.vercel) writes.push(writeVercelDeploymentOutput({
++		...options.vercel,
++		clientOutDir: options.clientOutDir,
++		rootDir: options.rootDir
++	}));
++	else if (options.cleanup?.vercel) {
++		const cleanup = typeof options.cleanup.vercel === "function" ? await options.cleanup.vercel() : options.cleanup.vercel;
++		if (cleanup) writes.push(cleanupVercelDeploymentOutputs(options.rootDir, cleanup));
++	}
++	await Promise.all(writes);
++	await options.afterWrite?.();
++}
++async function writeProviderDeploymentOutputs(options) {
++	const key = resolve(options.rootDir);
++	const write = (providerDeploymentOutputWrites.get(key) ?? Promise.resolve()).catch(() => void 0).then(() => writeProviderDeploymentOutputsNow(options));
++	providerDeploymentOutputWrites.set(key, write);
++	try {
++		await write;
++	} finally {
++		if (providerDeploymentOutputWrites.get(key) === write) providerDeploymentOutputWrites.delete(key);
++	}
++}
++//#endregion
++//#region src/internal/generated.ts
++function createTableExports(definition, definitionVariable) {
++	return definition.tableNames.map((tableName) => `export const ${tableName} = ${definitionVariable}.schema[${JSON.stringify(tableName)}]`);
++}
++function renderGeneratedDrizzleSchema(file, definition) {
++	const definitionVariable = "databaseDefinition";
++	return [
++		`import ${definitionVariable} from ${JSON.stringify(createImportPath(file, definition.handler))}`,
++		"",
++		...createTableExports(definition, definitionVariable),
++		`export const schema = ${definitionVariable}.schema`,
++		"export default schema",
++		""
++	].join("\n");
++}
++function renderDbCredentials(database) {
++	const databaseId = renderConfigValueExpression(database.cloudflare?.databaseId);
++	if (database.cloudflare?.http && databaseId) return [
++		"  driver: \"d1-http\",",
++		"  dbCredentials: {",
++		"    accountId: process.env[\"CLOUDFLARE_ACCOUNT_ID\"],",
++		`    databaseId: ${databaseId},`,
++		"    token: process.env[\"CLOUDFLARE_API_TOKEN\"],",
++		"  },"
++	];
++	const url = renderConfigValueExpression(database.connection?.url);
++	const authToken = renderConfigValueExpression(database.connection?.authToken);
++	if (!url) return [];
++	return [
++		"  dbCredentials: {",
++		...authToken ? [`    authToken: ${authToken},`] : [],
++		`    url: ${url},`,
++		"  },"
++	];
++}
++function renderGeneratedDrizzleConfig(config, databaseNames = config.databaseNames) {
++	const schemaFiles = databaseNames.map((name) => config.generatedSchemaFilesByDatabase[name]);
++	const database = config.databases[databaseNames[0]];
++	const out = databaseNames.length === 1 ? database.migrationsDir : ".vitehub/database/migrations";
++	return [
++		"export default {",
++		"  dialect: \"sqlite\",",
++		...renderDbCredentials(database),
++		`  schema: ${JSON.stringify(schemaFiles)},`,
++		`  out: ${JSON.stringify(out)},`,
++		"}",
++		""
++	].join("\n");
++}
++async function writeGeneratedDatabaseArtifacts(config) {
++	await Promise.all(config.definitions.map(async (definition) => {
++		const file = config.generatedSchemaFilesByDatabase[definition.name];
++		await mkdir(dirname$1(file), { recursive: true });
++		await writeFile(file, renderGeneratedDrizzleSchema(file, definition), "utf8");
++	}));
++	await mkdir(dirname$1(config.generatedDrizzleConfigFile), { recursive: true });
++	await writeFile(config.generatedDrizzleConfigFile, renderGeneratedDrizzleConfig(config), "utf8");
++	await Promise.all(config.databaseNames.map(async (name) => {
++		const file = config.generatedDrizzleConfigFilesByDatabase[name];
++		await mkdir(dirname$1(file), { recursive: true });
++		await writeFile(file, renderGeneratedDrizzleConfig(config, [name]), "utf8");
++	}));
++}
++//#endregion
++//#region src/internal/runtime-config-expression.ts
++function getDefaultCloudflareBindingName(name) {
++	if (name === "default") return "DB";
++	return `DB_${name.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").replace(/_+/g, "_").toUpperCase() || "DATABASE"}`;
++}
++function renderConfigExpression(value) {
++	return typeof value === "undefined" ? "undefined" : JSON.stringify(value);
++}
++function serializeDatabaseConfig({ cloudflare: _cloudflare, connection: _connection, drizzle: _drizzle, ...database }) {
++	return JSON.stringify(database, null, 4);
++}
++function renderDatabaseConfigExpression(name, config, definitionVariable) {
++	const base = config.databases[name];
++	const baseHttp = base.cloudflare?.http;
++	const baseHttpConfig = baseHttp && baseHttp !== true ? baseHttp : void 0;
++	const http = `${definitionVariable}.cloudflare.http === true ? true : ${definitionVariable}.cloudflare.http ? { authToken: ${definitionVariable}.cloudflare.http.authToken ?? ${renderConfigExpression(baseHttpConfig?.authToken)}, url: ${definitionVariable}.cloudflare.http.url ?? ${renderConfigExpression(baseHttpConfig?.url)} } : ${renderConfigExpression(baseHttp)}`;
++	return [
++		"{",
++		`      ...${serializeDatabaseConfig(base)},`,
++		`      cloudflare: ${definitionVariable}.cloudflare ? { binding: ${definitionVariable}.cloudflare.binding ?? ${JSON.stringify(base.cloudflare?.binding ?? getDefaultCloudflareBindingName(name))}, databaseId: ${definitionVariable}.cloudflare.databaseId, databaseName: ${definitionVariable}.cloudflare.databaseName, http: ${http}, migrationsDir: ${JSON.stringify(base.migrationsDir)}, migrationsTable: ${definitionVariable}.cloudflare.migrationsTable, previewDatabaseId: ${definitionVariable}.cloudflare.previewDatabaseId } : undefined,`,
++		`      connection: ${definitionVariable}.connection ? { authToken: ${definitionVariable}.connection.authToken ?? ${renderConfigExpression(base.connection?.authToken)}, url: ${definitionVariable}.connection.url ?? ${renderConfigExpression(base.connection?.url)} } : ${renderConfigExpression(base.connection)},`,
++		`      drizzle: ${definitionVariable}.drizzle ?? {},`,
++		"    }"
++	].join("\n");
++}
++//#endregion
++//#region ../internal/src/provision-state.ts
++const PROVISION_STATE_FILE = ".vitehub/provision.json";
++function getProvisionStatePath(rootDir) {
++	return resolve$1(rootDir, PROVISION_STATE_FILE);
++}
++function readProvisionStateSync(rootDir) {
++	try {
++		return parseProvisionState(readFileSync(getProvisionStatePath(rootDir), "utf8"));
++	} catch {
++		return {};
++	}
++}
++function readProvisionedId(state, provider, category, key) {
++	return state[provider]?.[category]?.[key];
++}
++function parseProvisionState(raw) {
++	const parsed = JSON.parse(raw);
++	return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
++}
++//#endregion
++//#region src/internal/vite-build.ts
++const dbPackageName = "@vite-hub/database";
++const productName = "database";
++const packageDir = computePackageDir(import.meta.url);
++const resolveRuntimeModule = (modulePath) => resolveRuntimeModule$1(packageDir, modulePath);
++const providerEntrySpecs = [{
++	entryFile: "cloudflare-worker.mjs",
++	factory: "createDbCloudflareWorker",
++	name: "cloudflare",
++	runtimeModule: "runtime/cloudflare-vite"
++}, {
++	entryFile: "vercel-server.mjs",
++	factory: "createDbVercelServer",
++	name: "vercel",
++	runtimeModule: "runtime/vercel-vite"
++}];
++function renderRuntimeModule(file, runtimeConfig) {
++	const imports = runtimeConfig.definitions.flatMap((definition, index) => [`import definition_${index} from ${JSON.stringify(createImportPath(file, definition.handler))}`, `import schema_${index} from ${JSON.stringify(createImportPath(file, runtimeConfig.generatedSchemaFilesByDatabase[definition.name]))}`]);
++	const databaseEntries = runtimeConfig.databaseNames.map((name, index) => [
++		`  ${JSON.stringify(name)}: {`,
++		`    db: createHostedDrizzleDb(${renderDatabaseConfigExpression(name, runtimeConfig, `definition_${index}`)}, schema_${index}),`,
++		`    schema: schema_${index},`,
++		"  },"
++	].join("\n"));
++	return [
++		`import { createAgentDatabase } from ${JSON.stringify(createImportPath(file, resolveRuntimeModule("runtime/agent")))}`,
++		`import { createHostedDrizzleDb } from ${JSON.stringify(createImportPath(file, resolveRuntimeModule("runtime/hosted")))}`,
++		"",
++		...imports,
++		"",
++		"export const databases = {",
++		...databaseEntries,
++		"}",
++		"export const agentDb = createAgentDatabase(databases)",
++		"",
++		...runtimeConfig.databaseNames.includes("default") ? ["export const db = databases.default.db", "export const schema = databases.default.schema"] : [],
++		""
++	].join("\n");
++}
++function renderProviderEntry(spec, entryFile, userAppEntry) {
++	const imports = [`import { ${spec.factory} } from ${JSON.stringify(createImportPath(entryFile, resolveRuntimeModule(spec.runtimeModule)))}`];
++	if (userAppEntry) imports.push(`import dbApp from ${JSON.stringify(createImportPath(entryFile, userAppEntry))}`);
++	return [
++		...imports,
++		"",
++		`export default ${spec.factory}({`,
++		userAppEntry ? "  app: dbApp," : "",
++		"})",
++		""
++	].filter(Boolean).join("\n");
++}
++async function writeProviderEntries(rootDir, runtimeConfig) {
++	const generatedDir = ensureGeneratedDir(rootDir, productName);
++	await mkdir(generatedDir, { recursive: true });
++	const userAppEntry = resolveUserAppEntry(rootDir, { names: [
++		"server.db.ts",
++		"server.db.mts",
++		"server.db.js",
++		"server.db.mjs",
++		"server.ts",
++		"server.mts",
++		"server.js",
++		"server.mjs"
++	] });
++	const entryFiles = {
++		cloudflare: "",
++		vercel: ""
++	};
++	const runtimeModuleFiles = {
++		cloudflare: "",
++		vercel: ""
++	};
++	const definitionDefaultsFile = resolve$1(generatedDir, "definition-defaults.mjs");
++	await Promise.all([writeFile(definitionDefaultsFile, `export default ${JSON.stringify(runtimeConfig.definitionDefaults)}\n`, "utf8"), ...providerEntrySpecs.map(async (spec) => {
++		const entryFile = resolve$1(generatedDir, spec.entryFile);
++		const runtimeModuleFile = resolve$1(generatedDir, `${spec.name}-runtime.mjs`);
++		entryFiles[spec.name] = entryFile;
++		runtimeModuleFiles[spec.name] = runtimeModuleFile;
++		await Promise.all([writeFile(entryFile, renderProviderEntry(spec, entryFile, userAppEntry), "utf8"), writeFile(runtimeModuleFile, renderRuntimeModule(runtimeModuleFile, runtimeConfig), "utf8")]);
++	})]);
++	return {
++		cloudflareWorkerFile: entryFiles.cloudflare,
++		definitionDefaultsFile,
++		generatedDir,
++		runtimeModuleFiles,
++		vercelServerFile: entryFiles.vercel
++	};
++}
++function resolveDatabaseId(runtimeConfig, name, provisionState) {
++	return resolveConfigValue(runtimeConfig.databases[name]?.cloudflare?.databaseId) ?? readProvisionedId(provisionState, "cloudflare", "d1", name);
++}
++function isRemoteLibsqlConnectionUrl(value) {
++	const url = resolveConfigValue(value);
++	return typeof url === "string" ? /^(?:libsql:|https?:\/\/)/i.test(url) : typeof value !== "undefined";
++}
++function hasConfigValue(value) {
++	const databaseId = resolveConfigValue(value);
++	return typeof databaseId === "string" ? Boolean(databaseId.trim()) : typeof value !== "undefined";
++}
++function getCloudflareUnsupportedDatabases(runtimeConfig, provisionState) {
++	return runtimeConfig.databaseNames.filter((name) => {
++		const database = runtimeConfig.databases[name];
++		return !Boolean(resolveDatabaseId(runtimeConfig, name, provisionState)) && !isRemoteLibsqlConnectionUrl(database?.connection?.url);
++	});
++}
++function getCloudflareDatabasesMissingNames(runtimeConfig, provisionState) {
++	return runtimeConfig.databaseNames.filter((name) => {
++		const cloudflare = runtimeConfig.databases[name]?.cloudflare;
++		return Boolean(resolveDatabaseId(runtimeConfig, name, provisionState)) && !resolveConfigValue(cloudflare?.databaseName);
++	});
++}
++function getVercelUnsupportedDatabases(runtimeConfig) {
++	return runtimeConfig.databaseNames.filter((name) => {
++		const database = runtimeConfig.databases[name];
++		return !(Boolean(database?.cloudflare?.http) && hasConfigValue(database.cloudflare?.databaseId)) && !isRemoteLibsqlConnectionUrl(database?.connection?.url);
++	});
++}
++function createCloudflareOutput({ artifacts, providerOutput, provisionState, runtimeConfig }) {
++	const databasesMissingNames = getCloudflareDatabasesMissingNames(runtimeConfig, provisionState);
++	if (databasesMissingNames.length) throw new Error(`[vitehub] Cloudflare output requires \`db.cloudflare.databaseName\` when \`db.cloudflare.databaseId\` is set for databases: ${databasesMissingNames.join(", ")}.`);
++	const unsupportedDatabases = getCloudflareUnsupportedDatabases(runtimeConfig, provisionState);
++	if (unsupportedDatabases.length) throw new Error(`[vitehub] Cloudflare output requires \`db.cloudflare.databaseId\` or a remote libSQL \`db.connection.url\` for databases: ${unsupportedDatabases.join(", ")}.`);
++	const d1Databases = resolveCloudflareD1Bindings(runtimeConfig, { provisionState }).d1Databases;
++	const blobRuntime = getProviderRuntimeModule(providerOutput, "blob", "cloudflare");
++	const wranglerConfig = {
++		compatibility_date: defaultCloudflareCompatibilityDate,
++		compatibility_flags: ["nodejs_compat"],
++		...d1Databases.length ? { d1_databases: d1Databases } : {},
++		main: "index.js",
++		observability: { enabled: true }
++	};
++	return {
++		bundleEntry: artifacts.cloudflareWorkerFile,
++		bundleOptions: {
++			alias: {
++				"#vitehub/database/definition-defaults": artifacts.definitionDefaultsFile,
++				"@vite-hub/database/drizzle": artifacts.runtimeModuleFiles.cloudflare,
++				...blobRuntime ? { "@vite-hub/blob": blobRuntime } : {}
++			},
++			conditions: [
++				"vitehub-hosted",
++				"workerd",
++				"worker",
++				"browser",
++				"default"
++			],
++			external: ["node:async_hooks"],
++			format: "esm",
++			platform: "neutral"
++		},
++		wranglerConfigKeys: ["d1_databases"],
++		wranglerConfig
++	};
++}
++function createVercelOutput({ artifacts, providerOutput, runtimeConfig, serverFunctionName }) {
++	const unsupportedDatabases = getVercelUnsupportedDatabases(runtimeConfig);
++	if (unsupportedDatabases.length) throw new Error(`[vitehub] Vercel output requires \`db.cloudflare.http\` with \`db.cloudflare.databaseId\`, or a remote libSQL \`db.connection.url\`, for databases: ${unsupportedDatabases.join(", ")}.`);
++	const blobRuntime = getProviderRuntimeModule(providerOutput, "blob", "vercel");
++	return {
++		bundleEntry: artifacts.vercelServerFile,
++		bundleOptions: {
++			alias: {
++				"#vitehub/database/definition-defaults": artifacts.definitionDefaultsFile,
++				"@vite-hub/database/drizzle": artifacts.runtimeModuleFiles.vercel,
++				...blobRuntime ? { "@vite-hub/blob": blobRuntime } : {}
++			},
++			conditions: [
++				"vitehub-hosted",
++				"node",
++				"default"
++			],
++			format: "esm",
++			platform: "node"
++		},
++		...serverFunctionName ? { function: {
++			kind: "isolated",
++			name: serverFunctionName
++		} } : {}
++	};
++}
++function shouldCreateVercelOutput(runtimeConfig) {
++	return getVercelUnsupportedDatabases(runtimeConfig).length === 0;
++}
++function shouldCreateCloudflareOutput(runtimeConfig, provisionState) {
++	return getCloudflareUnsupportedDatabases(runtimeConfig, provisionState).length === 0 && getCloudflareDatabasesMissingNames(runtimeConfig, provisionState).length === 0;
++}
++function getSupportedProviderRuntimeModules(artifacts, runtimeConfig, provisionState) {
++	return {
++		...shouldCreateCloudflareOutput(runtimeConfig, provisionState) ? {
++			cloudflare: artifacts.runtimeModuleFiles.cloudflare,
++			"cloudflare-definition-defaults": artifacts.definitionDefaultsFile
++		} : {},
++		...shouldCreateVercelOutput(runtimeConfig) ? {
++			vercel: artifacts.runtimeModuleFiles.vercel,
++			"vercel-definition-defaults": artifacts.definitionDefaultsFile
++		} : {}
++	};
++}
++function registerSupportedProviderRuntimeModules(providerOutput, artifacts, runtimeConfig, provisionState) {
++	registerProviderRuntimeModules(providerOutput, productName, getSupportedProviderRuntimeModules(artifacts, runtimeConfig, provisionState));
++}
++async function generateProviderOutputs(options) {
++	const artifacts = options.artifacts ?? await prepareProviderOutputs(options);
++	const provisionState = readProvisionStateSync(options.rootDir);
++	registerSupportedProviderRuntimeModules(options.providerOutput, artifacts, options.runtimeConfig, provisionState);
++	const writeOptions = {
++		artifacts,
++		provisionState,
++		...options
++	};
++	await writeProviderDeploymentOutputs({
++		clientOutDir: options.clientOutDir,
++		cloudflare: shouldCreateCloudflareOutput(options.runtimeConfig, provisionState) ? createCloudflareOutput(writeOptions) : void 0,
++		cleanup: { cloudflare: () => {
++			return {
++				...!Object.entries(options.providerOutput?.runtimeModuleFilesByProduct ?? {}).some(([product, modules]) => product !== productName && Boolean(modules?.cloudflare)) ? { fileNames: ["index.js"] } : {},
++				wranglerConfigOwnership: { keys: ["d1_databases"] }
++			};
++		} },
++		rootDir: options.rootDir,
++		vercel: shouldCreateVercelOutput(options.runtimeConfig) ? createVercelOutput(writeOptions) : void 0
++	});
++	return artifacts;
++}
++async function prepareProviderOutputs(options) {
++	const artifacts = await writeProviderEntries(options.rootDir, options.runtimeConfig);
++	registerSupportedProviderRuntimeModules(options.providerOutput, artifacts, options.runtimeConfig, readProvisionStateSync(options.rootDir));
++	return artifacts;
++}
++//#endregion
++//#region ../internal/src/provision.ts
++function resolveCloudflareProvisionConfig(env) {
++	const accountId = trimmedEnv(env.CLOUDFLARE_ACCOUNT_ID);
++	const token = trimmedEnv(env.CLOUDFLARE_API_TOKEN);
++	if (!accountId || !token) return;
++	return {
++		accountId,
++		token
++	};
++}
++function createJsonClient(baseURL, headers, fetchImpl, baseQuery) {
++	return async function request(path, options = {}) {
++		const url = new URL(`${baseURL}${path}`);
++		for (const [key, value] of Object.entries({
++			...baseQuery,
++			...options.query
++		})) url.searchParams.set(key, value);
++		const init = {
++			method: options.method ?? "GET",
++			headers: { ...headers }
++		};
++		if (typeof options.body !== "undefined") {
++			init.headers["content-type"] = "application/json";
++			init.body = JSON.stringify(options.body);
++		}
++		const response = await fetchImpl(url, init);
++		if (!response.ok) throw new Error(`Provision request failed: ${options.method ?? "GET"} ${path} (${response.status}).`);
++		return await response.json();
++	};
++}
++function createCloudflareProvisionClient(config, fetchImpl = globalThis.fetch) {
++	const client = createJsonClient(`https://api.cloudflare.com/client/v4/accounts/${config.accountId}`, { authorization: `Bearer ${config.token}` }, fetchImpl);
++	return (path, options) => client(path, options);
++}
++function trimmedEnv(value) {
++	const trimmed = value?.trim();
++	return trimmed ? trimmed : void 0;
++}
++//#endregion
++//#region src/provision.ts
++function planDatabases(rootDir, options) {
++	const config = resolveDBViteConfig(options, rootDir);
++	if (!config) return [];
++	return config.databaseNames.flatMap((definition) => {
++		const cloudflare = config.databases[definition]?.cloudflare;
++		const databaseName = resolveConfigValue(cloudflare?.databaseName);
++		return databaseName ? [{
++			definition,
++			databaseName
++		}] : [];
++	});
++}
++function createDatabaseProvisionStep(resolveRootDir, options) {
++	return {
++		id: "database:cloudflare-d1",
++		provider: "cloudflare",
++		async plan(context) {
++			const config = resolveCloudflareProvisionConfig(context.env);
++			if (!config) {
++				context.logger.warn("database: skipping Cloudflare D1, missing CLOUDFLARE_ACCOUNT_ID/CLOUDFLARE_API_TOKEN.");
++				return [];
++			}
++			const planned = planDatabases(resolveRootDir(), options);
++			if (!planned.length) return [];
++			const request = createCloudflareProvisionClient(config, context.fetch);
++			const listed = await request("/d1/database");
++			const idByName = new Map((listed.result ?? []).filter((database) => Boolean(database.name && database.uuid)).map((database) => [database.name, database.uuid]));
++			return planned.map(({ definition, databaseName }) => {
++				const existingId = idByName.get(databaseName);
++				return {
++					kind: "cloudflare-d1",
++					name: databaseName,
++					exists: Boolean(existingId),
++					apply: async () => {
++						let id = existingId;
++						if (!id) id = (await request("/d1/database", {
++							method: "POST",
++							body: { name: databaseName }
++						})).result?.uuid;
++						return id ? { ids: { cloudflare: { d1: { [definition]: id } } } } : {};
++					}
++				};
++			});
++		}
++	};
++}
++//#endregion
++//#region src/vite.ts
++const DB_VIRTUAL_SCHEMA_ID = "#vitehub/database/schema";
++const DB_VIRTUAL_DATABASES_ID = "#vitehub/database/databases";
++const DB_VIRTUAL_DEFINITION_DEFAULTS_ID = "#vitehub/database/definition-defaults";
++const DB_VITE_PLUGIN_NAME = "@vite-hub/database/vite";
++const DB_INTERNAL_VIRTUAL_SCHEMA_ID = "virtual:vitehub/database/schema";
++const DB_INTERNAL_VIRTUAL_DATABASES_ID = "virtual:vitehub/database/databases";
++const RESOLVED_DB_VIRTUAL_SCHEMA_ID = `\0${DB_VIRTUAL_SCHEMA_ID}`;
++const RESOLVED_DB_VIRTUAL_DATABASES_ID = `\0${DB_VIRTUAL_DATABASES_ID}`;
++const RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID = `\0${DB_VIRTUAL_DEFINITION_DEFAULTS_ID}`;
++const DB_DRIZZLE_ENTRY_PATTERN = /(?:^|\/)(?:@vite-hub\/database|database)\/dist\/drizzle\.js$/;
++const mergeNoExternal = createNoExternalMerger(dbPackageName);
++function resolveDatabaseVirtualId(id) {
++	if (id === "#vitehub/database/schema" || id === DB_INTERNAL_VIRTUAL_SCHEMA_ID) return RESOLVED_DB_VIRTUAL_SCHEMA_ID;
++	if (id === "#vitehub/database/databases" || id === DB_INTERNAL_VIRTUAL_DATABASES_ID) return RESOLVED_DB_VIRTUAL_DATABASES_ID;
++	if (id === DB_VIRTUAL_DEFINITION_DEFAULTS_ID) return RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID;
++}
++function rewriteDrizzleVirtualImports(code) {
++	return code.replaceAll(DB_VIRTUAL_SCHEMA_ID, DB_INTERNAL_VIRTUAL_SCHEMA_ID).replaceAll(DB_VIRTUAL_DATABASES_ID, DB_INTERNAL_VIRTUAL_DATABASES_ID);
++}
++function renderSchemaModule(config) {
++	if (!config?.databaseNames.length) return "const schema = {}\nexport { schema }\nexport default schema\n";
++	const defaultName = config.databaseNames.includes("default") ? "default" : config.databaseNames[0];
++	return [
++		`export * from ${JSON.stringify(config.generatedSchemaFilesByDatabase[defaultName])}`,
++		`export { default, schema } from ${JSON.stringify(config.generatedSchemaFilesByDatabase[defaultName])}`,
++		""
++	].join("\n");
++}
++function renderDatabasesModule(config) {
++	if (!config?.databaseNames.length) return "export const databases = {}\nexport default databases\n";
++	const imports = config.definitions.map((definition, index) => [`import definition_${index} from ${JSON.stringify(definition.handler)}`, `import schema_${index} from ${JSON.stringify(config.generatedSchemaFilesByDatabase[definition.name])}`].join("\n"));
++	const entries = config.definitions.map((definition, index) => [
++		`  ${JSON.stringify(definition.name)}: {`,
++		`    config: ${renderDatabaseConfigExpression(definition.name, config, `definition_${index}`)},`,
++		`    schema: schema_${index},`,
++		"  },"
++	].join("\n"));
++	return [
++		...imports,
++		"",
++		"export const databases = {",
++		...entries,
++		"}",
++		"export default databases",
++		""
++	].join("\n");
++}
++function hubDb(options) {
++	let providerArtifacts;
++	let providerOutput;
++	let resolved;
++	let runtimeConfig;
++	let serverDirs;
++	function resolvedOptions() {
++		return resolved?.database ?? options;
++	}
++	async function refreshRuntimeConfig() {
++		if (!resolved) return;
++		runtimeConfig = resolveDBViteConfig(resolvedOptions(), resolved.root, { serverDirs });
++		if (runtimeConfig) await writeGeneratedDatabaseArtifacts(runtimeConfig);
++		return runtimeConfig;
++	}
++	return {
++		name: DB_VITE_PLUGIN_NAME,
++		api: {
++			getConfig: () => runtimeConfig,
++			refresh: refreshRuntimeConfig
++		},
++		vitehub: { cli: async () => {
++			const db = resolvedOptions();
++			if (db === false) return;
++			const contributor = createDbCliContributor(db?.cli, refreshRuntimeConfig);
++			const provision = [createDatabaseProvisionStep(() => resolved?.root ?? process.cwd(), db)];
++			return contributor ? {
++				...contributor,
++				provision
++			} : {
++				namespaces: [],
++				provision
++			};
++		} },
++		config(config) {
++			serverDirs = config["__vitehubServerDirs"] ?? serverDirs;
++		},
++		async configResolved(config) {
++			resolved = config;
++			providerOutput = useComposedProviderOutput(config);
++			await refreshRuntimeConfig();
++		},
++		configEnvironment(name, config) {
++			if (!isServerEnvironment(name, config)) return;
++			return { resolve: { noExternal: mergeNoExternal(config.resolve?.noExternal) } };
++		},
++		buildStart() {
++			resetComposedProviderOutput(providerOutput);
++		},
++		async handleHotUpdate(context) {
++			if (!runtimeConfig) return;
++			const changedFile = normalize(context.file);
++			if (!runtimeConfig.definitions.some((definition) => normalize(definition.handler) === changedFile)) return;
++			await refreshRuntimeConfig();
++			const schemaModule = context.server.moduleGraph.getModuleById(RESOLVED_DB_VIRTUAL_SCHEMA_ID);
++			const databasesModule = context.server.moduleGraph.getModuleById(RESOLVED_DB_VIRTUAL_DATABASES_ID);
++			if (schemaModule) context.server.moduleGraph.invalidateModule(schemaModule);
++			if (databasesModule) context.server.moduleGraph.invalidateModule(databasesModule);
++		},
++		async buildEnd() {
++			if (!resolved || !runtimeConfig || shouldSkipViteProviderBuild(resolved.command, getViteMode())) return;
++			await writeGeneratedDatabaseArtifacts(runtimeConfig);
++			providerArtifacts = await prepareProviderOutputs({
++				providerOutput,
++				rootDir: resolved.root,
++				runtimeConfig
++			});
++		},
++		resolveId(id) {
++			return resolveDatabaseVirtualId(id);
++		},
++		transform(code, id) {
++			if (DB_DRIZZLE_ENTRY_PATTERN.test(normalize(id))) return rewriteDrizzleVirtualImports(code);
++		},
++		load(id) {
++			if (id === RESOLVED_DB_VIRTUAL_SCHEMA_ID) return renderSchemaModule(runtimeConfig);
++			if (id === RESOLVED_DB_VIRTUAL_DATABASES_ID) return renderDatabasesModule(runtimeConfig);
++			if (id === RESOLVED_DB_VIRTUAL_DEFINITION_DEFAULTS_ID) {
++				const options = resolvedOptions();
++				return `export default ${JSON.stringify({
++					...options && options.driver === "d1" ? { cloudflare: { binding: options.binding } } : {},
++					...options && options.connection ? { connection: options.connection } : {}
++				})}\n`;
++			}
++		},
++		async closeBundle() {
++			if (!resolved || !runtimeConfig || shouldSkipViteProviderBuild(resolved.command, getViteMode())) return;
++			await writeGeneratedDatabaseArtifacts(runtimeConfig);
++			await generateProviderOutputs({
++				artifacts: providerArtifacts,
++				clientOutDir: resolved.build.outDir,
++				providerOutput,
++				rootDir: resolved.root,
++				runtimeConfig,
++				serverFunctionName: resolveNitroVercelFunctionName(resolved, "database")
++			});
++		}
++	};
++}
++//#endregion
++export { mergeCloudflareD1Bindings as a, resolveViteHubProjectRoot as c, hubDb as i, DB_VIRTUAL_SCHEMA_ID as n, resolveCloudflareD1Binding as o, DB_VITE_PLUGIN_NAME as r, resolveCloudflareD1Bindings as s, DB_VIRTUAL_DATABASES_ID as t };
+diff --git a/dist/vite.js b/dist/vite.js
+index 35e16559f738aae2539de36a2c8af9bca1f3c82c..4cf471a6f45e5d00fabc4223d60a5f6e126cbf24 100644
+--- a/dist/vite.js
++++ b/dist/vite.js
+@@ -1,2 +1,2 @@
+-import { i as hubDb, n as DB_VIRTUAL_SCHEMA_ID, r as DB_VITE_PLUGIN_NAME, t as DB_VIRTUAL_DATABASES_ID } from "./vite-BhybkS79.js";
++import { i as hubDb, n as DB_VIRTUAL_SCHEMA_ID, r as DB_VITE_PLUGIN_NAME, t as DB_VIRTUAL_DATABASES_ID } from "./vite-BFNPrO7q.js";
+ export { DB_VIRTUAL_DATABASES_ID, DB_VIRTUAL_SCHEMA_ID, DB_VITE_PLUGIN_NAME, hubDb };
+diff --git a/package.json b/package.json
+index 2ab9b9f12150ea6f8db5a63a5008bc22c60eec2f..98bbdf08d99f6dc22be3e0f96fec44d57e4237c3 100644
+--- a/package.json
++++ b/package.json
+@@ -41,7 +41,6 @@
+     "./config": "./dist/config.js",
+     "./drizzle": "./dist/drizzle.js",
+     "./nuxt": "./dist/nuxt.js",
+-    "./runtime/agent": "./dist/runtime/agent.js",
+     "./runtime/cloudflare-vite": "./dist/runtime/cloudflare-vite.js",
+     "./runtime/hosted": "./dist/runtime/hosted.js",
+     "./runtime/state": "./dist/runtime/state.js",
+@@ -59,7 +58,7 @@
+     "pathe": "^2.0.3"
+   },
+   "devDependencies": {
+-    "@vite-hub/env": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/env@2f7479e",
++    "@vite-hub/env": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/env@e0a665e",
+     "drizzle-orm": "^0.45.2",
+     "publint": "^0.3.21",
+     "typescript": "^6.0.3",

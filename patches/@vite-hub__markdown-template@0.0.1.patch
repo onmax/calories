@@ -1,0 +1,93 @@
+diff --git a/dist/render-BLW6AgLZ.js b/dist/render-BLW6AgLZ.js
+index 7fefdf1e277b395abe30a3be740dc6527b88caec..52cf585f0e5445c6af6453e7ae9ced5331e581e2 100644
+--- a/dist/render-BLW6AgLZ.js
++++ b/dist/render-BLW6AgLZ.js
+@@ -283,7 +283,7 @@ const tagBindingPattern = new RegExp(String.raw`(?<!\{)\{\{(?!\{)\s*(${templateP
+ async function resolveMarkdownTemplateImports(template, options) {
+ 	assertTemplate(template);
+ 	const preparation = createTemplatePreparation();
+-	return restoreTemplateTokens(restoreTemplateTags(await expandPreparedImports(await preparation.prepare(template), options, preparation), preparation.tagTokens), preparation.protectedTokens);
++	return restoreTemplateTokens(restoreTemplateTokens(restoreTemplateTags(await expandPreparedImports(await preparation.prepare(template), options, preparation), preparation.tagTokens), preparation.escapedTokens, "\\"), preparation.protectedTokens);
+ }
+ async function renderMarkdownTemplate(template, options = {}) {
+ 	return await renderMarkdownTemplateInternal(template, options);
+@@ -308,16 +308,20 @@ async function renderMarkdownTemplateInternal(template, options = {}) {
+ 		fragments: normalized.fragments,
+ 		validateConditionPath: options.validateConditionPath
+ 	});
+-	return restoreTemplateTokens(restoreTemplateTags(cleanMarkdown(await renderMarkdown({
++	return restoreTemplateTokens(restoreTemplateTokens(restoreTemplateTags(cleanMarkdown(await renderMarkdown({
+ 		...tree,
+ 		nodes
+-	}, { components: preparation.runtime.components })), preparation.tagTokens, data), preparation.protectedTokens);
++	}, { components: preparation.runtime.components })), preparation.tagTokens, data), preparation.escapedTokens), preparation.protectedTokens);
+ }
+ function assertTemplate(template) {
+ 	if (typeof template !== "string") throw new TypeError("[vitehub] Markdown template must be a string.");
+ }
+ function createTemplatePreparation() {
+ 	const nonce = crypto.randomUUID().replaceAll("-", "");
++	const escapedTokens = {
++		prefix: `VITEHUBMARKDOWNTEMPLATEESCAPED${nonce}`,
++		values: []
++	};
+ 	const protectedTokens = {
+ 		prefix: `VITEHUBMARKDOWNTEMPLATEPROTECTED${nonce}`,
+ 		values: []
+@@ -328,10 +332,11 @@ function createTemplatePreparation() {
+ 	};
+ 	return {
+ 		prepare: async (value) => {
+-			const prepared = maskTemplateTags(await protectCodeTemplateSyntax(value, protectedTokens, nonce), tagTokens);
++			const prepared = maskTemplateTags(await protectCodeTemplateSyntax(value, escapedTokens, protectedTokens, nonce), tagTokens);
+ 			validateConditionalDirectives(await directiveValidationSource(prepared));
+ 			return prepared;
+ 		},
++		escapedTokens,
+ 		protectedTokens,
+ 		runtime: createMarkdownTemplateRuntime(nonce),
+ 		tagTokens
+@@ -367,10 +372,13 @@ function renderTagBindings(tag, data) {
+ function escapeHtmlAttribute(value) {
+ 	return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+ }
+-function restoreTemplateTokens(template, state) {
+-	return template.replace(new RegExp(`${state.prefix}(\\d+)END`, "g"), (_match, index) => state.values[Number(index)] ?? _match);
++function restoreTemplateTokens(template, state, prefix = "") {
++	return template.replace(new RegExp(`${state.prefix}(\\d+)END`, "g"), (_match, index) => {
++		const value = state.values[Number(index)];
++		return value === void 0 ? _match : `${prefix}${value}`;
++	});
+ }
+-async function protectCodeTemplateSyntax(template, protectedTokens, nonce) {
++async function protectCodeTemplateSyntax(template, escapedTokens, protectedTokens, nonce) {
+ 	const candidates = [];
+ 	const prefix = `VITEHUBMARKDOWNTEMPLATECANDIDATE${nonce}`;
+ 	let masked = template.replace(/^(\s*)(::[^\r\n]*)$/gm, (_match, indentation, directive) => {
+@@ -379,6 +387,12 @@ async function protectCodeTemplateSyntax(template, protectedTokens, nonce) {
+ 			value: directive
+ 		}) - 1}END`;
+ 	});
++	masked = masked.replace(/\\(\{\{\{[^{}\r\n]*\}\}\}|\{\{[^{}\r\n]*\}\})/g, (escaped) => {
++		return `${prefix}${candidates.push({
++			kind: "escaped-syntax",
++			value: escaped
++		}) - 1}END`;
++	});
+ 	masked = masked.replace(/\{\{\{[^{}\r\n]*\}\}\}|\{\{[^{}\r\n]*\}\}/g, (binding) => {
+ 		return `${prefix}${candidates.push({
+ 			kind: "syntax",
+@@ -396,7 +410,12 @@ async function protectCodeTemplateSyntax(template, protectedTokens, nonce) {
+ 	return masked.replace(new RegExp(`${prefix}(\\d+)END`, "g"), (_match, index) => {
+ 		const candidate = candidates[Number(index)];
+ 		if (!candidate) return _match;
+-		if (!inCode.has(Number(index))) return candidate.kind === "directive" ? normalizeConditionDirective(candidate.value) : candidate.value;
++		if (!inCode.has(Number(index))) {
++			if (candidate.kind === "directive") return normalizeConditionDirective(candidate.value);
++			if (candidate.kind === "syntax") return candidate.value;
++			const escapedIndex = escapedTokens.values.push(candidate.value.slice(1)) - 1;
++			return `${escapedTokens.prefix}${escapedIndex}END`;
++		}
+ 		const protectedIndex = protectedTokens.values.push(candidate.value) - 1;
+ 		return `${protectedTokens.prefix}${protectedIndex}END`;
+ 	});

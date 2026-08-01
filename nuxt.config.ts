@@ -1,14 +1,19 @@
-import viteHubNuxt from "vite-hub/nuxt"
-import { viteConfig, viteHubOptions } from "./vite.config"
+import { env, type EnvViteUserConfig } from "vite-hub/env"
 
 export default defineNuxtConfig({
   compatibilityDate: "2026-07-24",
   modules: [
     "@nuxt/ui",
-    "@vite-hub/database/nuxt",
-    [viteHubNuxt as any, viteHubOptions],
+    "vite-hub/nuxt",
   ],
-  database: viteHubOptions.database,
+  vitehub: {
+    preset: "cloudflare",
+    agent: true,
+    blob: {
+      serve: { route: "/photos" },
+    },
+    database: true,
+  },
   css: ["~/assets/main.css"],
   ui: {
     colorMode: false,
@@ -25,7 +30,36 @@ export default defineNuxtConfig({
       config.handlers = config.handlers?.filter(handler => handler.route !== "/api/_nuxt_icon/:collection")
     },
   },
-  vite: viteConfig,
+  vite: {
+    env: {
+      server: {
+        calories: {
+          timeZone: env({
+            optional: true,
+            source: env.source("CALORIES_TIME_ZONE"),
+          }),
+        },
+        telegram: {
+          allowedUserId: env({
+            source: env.source("TELEGRAM_ALLOWED_USER_ID"),
+          }),
+          botToken: env({
+            secret: true,
+            source: env.source("TELEGRAM_TOKEN"),
+          }),
+          webhookSecret: env({
+            optional: true,
+            secret: true,
+            source: env.source("TELEGRAM_WEBHOOK_SECRET"),
+          }),
+        },
+        vercelAiGatewayToken: env({
+          secret: true,
+          source: env.source("VERCEL_AI_GATEWAY_TOKEN"),
+        }),
+      },
+    },
+  } satisfies EnvViteUserConfig,
   devtools: { enabled: false },
   nitro: {
     serverAssets: [{

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
+import { renderMarkdownTemplate } from "vite-hub/markdown-template"
 
 const instructions = await readFile(
   new URL("../server/agents/calories/instructions.md", import.meta.url),
@@ -11,87 +12,59 @@ const agent = await readFile(
   "utf8",
 )
 
-test("the meal prompt prioritizes the clear main subject over background dishes", () => {
-  assert.match(instructions, /main subject/i)
-  assert.match(instructions, /background/i)
-  assert.match(instructions, /center/i)
+test("the journal prompt keeps the current message authoritative", () => {
+  assert.match(instructions, /current caption, consumed quantity, and stated time as ground truth/i)
+  assert.match(instructions, /centered clear subject/i)
+  assert.match(instructions, /ignore incidental background food/i)
 })
 
-test("the meal prompt keeps clear unsweetened Japanese green tea within 0 to 5 kcal", () => {
-  assert.match(instructions, /Japanese green tea/i)
-  assert.match(instructions, /0(?:\s|–|-)+5 kcal/i)
-  assert.match(instructions, /without milk/i)
+test("prior-entry actions identify one database record before acting", () => {
+  assert.match(instructions, /identify the record from the conversation and database/i)
+  assert.match(instructions, /corrections, removals, and questions/i)
+  assert.match(instructions, /ask one brief question.*ambiguous/i)
 })
 
-test("the meal prompt follows the current caption's consumed quantity", () => {
-  assert.match(instructions, /current (?:message|caption)/i)
-  assert.match(instructions, /ground truth/i)
-  assert.match(instructions, /(?:ate|consumed)/i)
-  assert.match(instructions, /photo differs.*stated quantity/i)
+test("the four XML response templates each declare when they apply", () => {
+  for (const name of ["duplicate", "new-meal", "journal-answer", "clarification"]) {
+    assert.match(instructions, new RegExp(`<${name} use-when="[^"]+">`))
+    assert.match(instructions, new RegExp(`</${name}>`))
+  }
 })
 
-test("the meal prompt does not invent a protein identity", () => {
-  assert.match(instructions, /uncertain protein/i)
-  assert.match(instructions, /uncertain protein neutrally/i)
-  assert.match(instructions, /low confidence/i)
+test("instruction composition resolves the dashboard URL but preserves the final cost binding", async () => {
+  assert.equal(instructions.match(/\\\{\{ cost \}\}/g)?.length, 4)
+  assert.doesNotMatch(instructions, /\\\\\{\{ cost \}\}/)
+
+  const rendered = await renderMarkdownTemplate(instructions, {
+    data: { context: { dashboardUrl: "https://calories.example" } },
+  })
+
+  assert.match(rendered, /https:\/\/calories\.example/)
+  assert.match(rendered, /Dashboard: https:\/\/calories\.example\?meal=RECORD_ID/)
+  assert.match(rendered, /TOTAL_CALORIES/)
+  assert.doesNotMatch(rendered, /context\.dashboardUrl/)
+  assert.match(rendered, /\{\{ cost \}\}/)
+  assert.doesNotMatch(rendered, /\\\{\{ cost \}\}/)
+  assert.doesNotMatch(instructions, /https?:\/\/[\w.-]*calor/i)
 })
 
-test("each new meal is isolated while Telegram keeps enough history for follow-up questions", () => {
-  assert.match(instructions, /Analyze only the current message/i)
-  assert.match(instructions, /history never supplies items/i)
-  assert.match(agent, /triggerHistory:\s*\{\s*maxMessages:\s*8,\s*source:\s*"thread"\s*\}/)
-})
-
-test("text descriptions can create meals without a photo", () => {
-  assert.match(instructions, /with or without photos/i)
-  assert.doesNotMatch(agent, /requires at least one image/i)
-})
-
-test("each distinct album photo produces its own meal analysis", () => {
-  assert.match(instructions, /multiple photos.*exactly one analysis per photo/is)
-  assert.match(instructions, /same order/i)
-  assert.match(instructions, /separate consumed portion/i)
-  assert.match(agent, /if \(images\.length > 1 && analyses\.length !== images\.length\)/)
-})
-
-test("explicit meal times are preserved in the user's time zone", () => {
-  assert.match(instructions, /consumedAt/)
-  assert.match(instructions, /ISO 8601 timestamp with an offset/i)
-  assert.match(instructions, /explicit or relative time/i)
-  assert.match(agent, /createdAt = analysis\.consumedAt/)
-  assert.match(agent, /getUserTimeZone/)
-})
-
-test("journal questions and corrections use write-enabled ViteHub database access", () => {
-  assert.match(instructions, /\*\*Edit:\*\*.*update only the matching row/is)
-  assert.match(instructions, /\*\*Remove:\*\*.*delete the row only/is)
-  assert.match(instructions, /Existing-data actions take priority over logging/i)
-  assert.match(instructions, /kind: "reply".*never `kind: "meal"`/i)
+test("the Agent Definition delegates storage, cost, delivery, and rendering to ViteHub", () => {
   assert.match(agent, /db\(\{\s*mode:\s*"write"\s*\}\)/)
-  assert.doesNotMatch(agent, /policy:/)
+  assert.match(agent, /usageCost\(\{\s*format:\s*"usd"\s*\}\)/)
+  assert.match(agent, /delivery:\s*"manual"/)
+  assert.match(agent, /context\.context\.set\("dashboardUrl", useRequestURL\(\)\.origin\)/)
+  assert.match(agent, /const cost = event\.extensions\.get\("usage-cost"\)\?\.cost\?\.formatted/)
+  assert.match(agent, /return event\.reply\(await renderMarkdownTemplate\(event\.text \?\? "", \{ data: \{ cost \} \}\)\)/)
+  assert.equal(agent.match(/event\.reply\(/g)?.length, 1)
+})
+
+test("the simplified Agent Definition has no domain output schema or local cost formatter", () => {
+  assert.doesNotMatch(agent, /output:\s*\{\s*schema:/)
+  assert.doesNotMatch(agent, /Intl\.NumberFormat/)
+  assert.doesNotMatch(agent, /CaloriesAgentOutput|mealAnalysisOutput|formatUsageCost/)
 })
 
 test("the persistent prompt stays compact", () => {
   const words = instructions.trim().split(/\s+/)
-  assert.ok(words.length <= 350, `expected at most 350 words, received ${words.length}`)
-})
-
-test("the Agent Definition leaves Telegram and gateway construction to ViteHub", () => {
-  assert.match(agent, /gateway\(model/)
-  assert.match(agent, /telegram\(\{\s*allowedUserIds:/)
-  assert.doesNotMatch(agent, /@ai-sdk\/gateway/)
-  assert.doesNotMatch(agent, /@chat-adapter\/telegram/)
-})
-
-test("the Agent Definition uses ViteHub usage for persisted and Telegram costs", async () => {
-  const reply = await readFile(
-    new URL("../server/agents/calories/reply.md", import.meta.url),
-    "utf8",
-  )
-
-  assert.match(agent, /import \{[^}]*\bdb\b[^}]*\busageCost\b[^}]*\} from "vite-hub\/agent\/capabilities"/)
-  assert.match(agent, /usageCost\(\)/)
-  assert.match(agent, /event\.extensions\.get\("usage-cost"\)/)
-  assert.match(agent, /event\.reply\(`\$\{result\.text\}\\n\\n\$\{cost\}`\)/)
-  assert.match(reply, /\{\{ cost \}\}/)
+  assert.ok(words.length <= 250, `expected at most 250 words, received ${words.length}`)
 })

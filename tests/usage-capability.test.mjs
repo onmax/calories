@@ -8,6 +8,7 @@ test("ViteHub usage cost enriches the normalized invocation record", async () =>
   const agent = defineAgent({
     capabilities: [
       usageCost({
+        format: "usd",
         pricing: vercelAiGatewayPricing({
           fetch: async () => Response.json({
             data: [{
@@ -53,6 +54,7 @@ test("ViteHub usage cost enriches the normalized invocation record", async () =>
     amount: "0.00116",
     currency: "USD",
     estimated: true,
+    formatted: "~$0.001160",
     source: "vercel-ai-gateway",
   })
 })
