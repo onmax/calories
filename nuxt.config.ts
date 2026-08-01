@@ -2,6 +2,13 @@ import { env, type EnvViteUserConfig } from "vite-hub/env"
 
 export default defineNuxtConfig({
   compatibilityDate: "2026-07-24",
+  app: {
+    head: {
+      htmlAttrs: { lang: "en" },
+      meta: [{ name: "color-scheme", content: "dark" }],
+      title: "Calories",
+    },
+  },
   modules: [
     "@nuxt/ui",
     "vite-hub/nuxt",
@@ -19,6 +26,9 @@ export default defineNuxtConfig({
     colorMode: false,
   },
   ssr: false,
+  routeRules: {
+    "/": { prerender: true },
+  },
   icon: {
     clientBundle: { scan: true },
     fallbackToApi: false,

@@ -14,11 +14,11 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs build && node scripts/stage-spa.mjs",
+    "build": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs build",
     "deploy": "pnpm build && wrangler deploy --config .output/server/wrangler.json",
     "db:generate": "node --env-file-if-exists=.env node_modules/vite-hub/dist/bin.js db generate",
     "db:migrate": "mkdir -p .vitehub/data/database && node --env-file-if-exists=.env node_modules/vite-hub/dist/bin.js db migrate",
-    "db:migrate:remote": "pnpm build && node scripts/stage-d1-migrations.mjs && wrangler d1 migrations apply DB --remote --config .output/server/wrangler.json",
+    "db:migrate:remote": "pnpm build && wrangler d1 migrations apply DB --remote --config .output/server/wrangler.json",
     "dev": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs dev --host 127.0.0.1 --port 3000",
     "postinstall": "vitehub types prepare && nuxt prepare",
     "preview": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs preview",

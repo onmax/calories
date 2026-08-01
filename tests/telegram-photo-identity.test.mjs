@@ -5,8 +5,6 @@ import { telegram } from "vite-hub/agent/channels"
 test("the ViteHub Telegram channel preserves file_unique_id on image parts", async () => {
   const channel = telegram({
     botToken: "test-token",
-    mode: "webhook",
-    userName: "test_bot",
   })
   assert.equal(typeof channel.adapter, "function")
   const adapter = await channel.adapter({})

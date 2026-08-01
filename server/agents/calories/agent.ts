@@ -1,11 +1,8 @@
-import { useRequestURL } from "nuxt/app"
 import { defineAgent, gateway } from "vite-hub/agent"
 import { db, usageCost } from "vite-hub/agent/capabilities"
 import { telegram } from "vite-hub/agent/channels"
 import { renderMarkdownTemplate } from "vite-hub/markdown-template"
 import { useServerEnv } from "#vitehub/env/server"
-
-const model = "zai/glm-5v-turbo"
 
 export default defineAgent({
   capabilities: [
@@ -24,23 +21,24 @@ export default defineAgent({
         triggerHistory: { maxMessages: 8, source: "thread" },
         timeout: 50_000,
       },
-      mode: "webhook",
-      userName: "vitehub_calories_bot",
-      webhookSecret: () => useServerEnv().telegram.webhookSecret ?? false,
+      webhookSecret: () => useServerEnv().telegram.webhookSecret,
     }),
   },
   driver: {
-    model: gateway(model, () => ({
+    execution: {
+      callSettings: { maxRetries: 5 },
+    },
+    model: gateway("zai/glm-5v-turbo", () => ({
       apiKey: useServerEnv().vercelAiGatewayToken,
     })),
   },
   hooks: {
     "agent:input"(context) {
-      context.context.set("dashboardUrl", useRequestURL().origin)
+      if (context.request) {
+        context.context.set("dashboardUrl", new URL(context.request.url).origin)
+      }
     },
     async "agent:finish"(event) {
-      if (event.error) return
-
       const cost = event.extensions.get("usage-cost")?.cost?.formatted ?? "Cost unavailable"
       return event.reply(await renderMarkdownTemplate(event.text ?? "", { data: { cost } }))
     },

@@ -48,9 +48,6 @@ server/
 vite.config.ts                    ViteHub plugin and environment
 nuxt.config.ts                    Nuxt UI, ViteHub modules, Nitro v3
 patches/                          package compatibility patches
-scripts/
-  stage-d1-migrations.mjs         migration handoff to Wrangler
-  stage-spa.mjs                   Nuxt nightly SPA shell for Worker assets
 ```
 
 ## Local development

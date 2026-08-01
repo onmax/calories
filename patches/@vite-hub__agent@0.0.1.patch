@@ -7968,12 +7968,59 @@ index 20297dab07c9984f0aacc347b2a2acdf78da409b..1e768f00eb6783bb6dfd13ab30d3632e
 +import { D as defineAgentRunEvents } from "./src-CktB4unw.js";
 +import { i as createTelegramPollingRouteHandler, r as createDiscordGatewayRouteHandler } from "./routes-Bk8z0sOK.js";
  export { createDiscordGatewayRouteHandler, createTelegramPollingRouteHandler, defineAgentRunEvents };
+diff --git a/dist/src-B3GiXaIA.js b/dist/src-B3GiXaIA.js
+index 8efdb91d711d3c4d39cf4225cb5c8d4054072213..95e6a600ccbc4d956c9001210404a32fbd219e08 100644
+--- a/dist/src-B3GiXaIA.js
++++ b/dist/src-B3GiXaIA.js
+@@ -1225,6 +1225,7 @@ async function createAgentInvocationContext(definition, context, input) {
+ 			finalOutputRenderers: capabilities.registries.finalOutputRenderers,
+ 			finishDeliveryEffectProviders: capabilities.registries.finishDeliveryEffectProviders,
+ 			finishExtensionProviders: capabilities.registries.finishExtensionProviders,
++			errorHook: definition?.hooks?.["agent:error"],
+ 			finishHook: definition?.hooks?.["agent:finish"],
+ 			globalSkills: capabilities.globalSkills,
+ 			hasCapabilityCleanup: capabilities.hasCloseCallbacks,
+@@ -1584,7 +1585,7 @@ function maybeTraceUiMessageStreamOutput(rendered, context) {
+ 	return isAsyncIterable(rendered) ? maybeTraceAgentStream(rendered, context) : rendered;
+ }
+ function hasFinishConsumer(context) {
+-	return Boolean(context.finishHook || context.finishDeliveryEffectProviders.length);
++	return Boolean(context.errorHook || context.finishHook || context.finishDeliveryEffectProviders.length);
+ }
+ function hasFinishWork(context) {
+ 	return hasFinishConsumer(context) || context.finishExtensionProviders.some((provider) => provider.eager);
+@@ -1756,7 +1757,9 @@ async function finishAgentInvocation(context, outcome) {
+ 				...text !== void 0 ? { text } : {}
+ 			};
+ 			const provisionalActiveDeliveryProviders = await prepareProvisionalTitleDeliverySupport(context, eventBase);
+-			const hasFinishConsumer = Boolean(context.finishHook || provisionalActiveDeliveryProviders.length || hasDeferredFinishDeliveryEffectProvider(context.finishDeliveryEffectProviders));
++			const invocationHook = failed ? context.errorHook : context.finishHook;
++			const hookName = failed ? "agent:error" : "agent:finish";
++			const hasFinishConsumer = Boolean(invocationHook || provisionalActiveDeliveryProviders.length || hasDeferredFinishDeliveryEffectProvider(context.finishDeliveryEffectProviders));
+ 			const finishExtensionProviders = hasFinishConsumer ? context.finishExtensionProviders : context.finishExtensionProviders.filter((provider) => provider.eager);
+ 			if (hasFinishConsumer || finishExtensionProviders.length) {
+ 				const extensions = await createAgentInvocationExtensions(eventBase, finishExtensionProviders);
+@@ -1768,11 +1771,11 @@ async function finishAgentInvocation(context, outcome) {
+ 				let finishHookResult;
+ 				await runObservedAgentHook(context.hooks, {
+ 					ids: { runId: context.run?.runId },
+-					name: "agent:finish",
++					name: hookName,
+ 					owner: "agent",
+-					phase: "finish"
++					phase: failed ? "error" : "finish"
+ 				}, async () => {
+-					finishHookResult = await context.finishHook?.(createAgentFinishHookEvent(finishEvent, context));
++					finishHookResult = await invocationHook?.(createAgentFinishHookEvent(finishEvent, context));
+ 				});
+ 				if (finishHookResult) {
+ 					const finishHookIntents = [];
 diff --git a/dist/src-CktB4unw.js b/dist/src-CktB4unw.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..68212e5162b73a60bbca76a75c3c247c1e3b71b4
+index 0000000000000000000000000000000000000000..febc7c0562993f6ff012d1d6c5d42df6c0272287
 --- /dev/null
 +++ b/dist/src-CktB4unw.js
-@@ -0,0 +1,2365 @@
+@@ -0,0 +1,2368 @@
 +import { c as isAsyncIterable, s as cloneWithPropertyDescriptors, u as toReadableAsyncIterableStream } from "./delivery-artifacts-BOKCLStf.js";
 +import { $ as isMessageChannelTitleEffectIntent, D as normalizeAgentInvokerOptions, G as bindMessageChannelInstructions, N as createAgentInvocationContextStore, S as runObservedAgentHook, X as finishMessageChannelTitleDelivery, _ as withCapabilityCleanup, a as channelDeliveryEffectsContextKey, d as normalizeCapabilities, g as validateAgentCapabilityComposition, h as resolveStaticCapabilityTools, it as prepareMessageChannelTitleDelivery, j as agentInvocationCallbackContextValues, k as resolveAgentInvoker, m as resolveAgentCapabilityDefinitions, n as applyOutputRenderers, o as channelDeliveryFinishEffectsContextKey, ot as resolveAgentChannelChatOptions, p as resolveAgentCapabilities, rt as messageChannelTitleDeliveredContextKey, s as createAgentInvocationExtensions, t as applyCapabilityToolTransforms, v as withResponseCleanup, w as createFallbackAgentInvoker } from "./capability-runtime-Be85oBbC.js";
 +import { a as tryAgentPromise, i as runAgentEffect, n as agentEffectCauseValues, o as EffectBoundaryFailure } from "./effect-runtime-CMnYHpMr.js";
@@ -9309,6 +9356,7 @@ index 0000000000000000000000000000000000000000..68212e5162b73a60bbca76a75c3c247c
 +			finalOutputRenderers: capabilities.registries.finalOutputRenderers,
 +			finishDeliveryEffectProviders: capabilities.registries.finishDeliveryEffectProviders,
 +			finishExtensionProviders: capabilities.registries.finishExtensionProviders,
++			errorHook: definition?.hooks?.["agent:error"],
 +			finishHook: definition?.hooks?.["agent:finish"],
 +			globalSkills: capabilities.globalSkills,
 +			hasCapabilityCleanup: capabilities.hasCloseCallbacks,
@@ -9668,7 +9716,7 @@ index 0000000000000000000000000000000000000000..68212e5162b73a60bbca76a75c3c247c
 +	return isAsyncIterable(rendered) ? maybeTraceAgentStream(rendered, context) : rendered;
 +}
 +function hasFinishConsumer(context) {
-+	return Boolean(context.finishHook || context.finishDeliveryEffectProviders.length);
++	return Boolean(context.errorHook || context.finishHook || context.finishDeliveryEffectProviders.length);
 +}
 +function hasFinishWork(context) {
 +	return hasFinishConsumer(context) || context.finishExtensionProviders.some((provider) => provider.eager);
@@ -9840,7 +9888,9 @@ index 0000000000000000000000000000000000000000..68212e5162b73a60bbca76a75c3c247c
 +				...text !== void 0 ? { text } : {}
 +			};
 +			const provisionalActiveDeliveryProviders = await prepareProvisionalTitleDeliverySupport(context, eventBase);
-+			const hasFinishConsumer = Boolean(context.finishHook || provisionalActiveDeliveryProviders.length || hasDeferredFinishDeliveryEffectProvider(context.finishDeliveryEffectProviders));
++			const invocationHook = failed ? context.errorHook : context.finishHook;
++			const hookName = failed ? "agent:error" : "agent:finish";
++			const hasFinishConsumer = Boolean(invocationHook || provisionalActiveDeliveryProviders.length || hasDeferredFinishDeliveryEffectProvider(context.finishDeliveryEffectProviders));
 +			const finishExtensionProviders = hasFinishConsumer ? context.finishExtensionProviders : context.finishExtensionProviders.filter((provider) => provider.eager);
 +			if (hasFinishConsumer || finishExtensionProviders.length) {
 +				const extensions = await createAgentInvocationExtensions(eventBase, finishExtensionProviders);
@@ -9852,11 +9902,11 @@ index 0000000000000000000000000000000000000000..68212e5162b73a60bbca76a75c3c247c
 +				let finishHookResult;
 +				await runObservedAgentHook(context.hooks, {
 +					ids: { runId: context.run?.runId },
-+					name: "agent:finish",
++					name: hookName,
 +					owner: "agent",
-+					phase: "finish"
++					phase: failed ? "error" : "finish"
 +				}, async () => {
-+					finishHookResult = await context.finishHook?.(createAgentFinishHookEvent(finishEvent, context));
++					finishHookResult = await invocationHook?.(createAgentFinishHookEvent(finishEvent, context));
 +				});
 +				if (finishHookResult) {
 +					const finishHookIntents = [];
@@ -10951,10 +11001,21 @@ index 0000000000000000000000000000000000000000..ff1177a8b4c959d4a5e2c3812f4d9787
 +export { McpToolFingerprints as a, McpServerConfig as i, McpClient as n, McpClientConfig as r, McpCapabilityOptions as t };
 \ No newline at end of file
 diff --git a/dist/types-C4oyRXNr.d.ts b/dist/types-C4oyRXNr.d.ts
-index 42dceaf5547844a5be77144261ccad7a1c53d3fd..27f95ac3af5d46fda73000be0fef8bfff527acc1 100644
+index 42dceaf5547844a5be77144261ccad7a1c53d3fd..f994f2e8bee5963fe2cb20bb8b771b39a704f50c 100644
 --- a/dist/types-C4oyRXNr.d.ts
 +++ b/dist/types-C4oyRXNr.d.ts
-@@ -1384,6 +1384,7 @@ interface AgentUsageCost {
+@@ -564,8 +564,10 @@ interface AgentFinishHookEvent<TRuntimeConfig extends AgentRuntimeConfig = Agent
+   status: (input: AgentChannelDeliveryStatusInput, options?: AgentChannelDeliveryEffectIntentOptions) => AgentChannelDeliveryEffectIntent<"status">;
+ }
+ type AgentFinishHook<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown> = (event: AgentFinishHookEvent<TRuntimeConfig, CALL_OPTIONS>) => MaybePromise<void | AgentChannelDeliveryFinishEffectResult>;
++type AgentErrorHook<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown> = AgentFinishHook<TRuntimeConfig, CALL_OPTIONS>;
+ type AgentInputHook<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown, TContextValues extends object = AgentInvocationContextValues> = (context: AgentRunCallbackContext<TRuntimeConfig, CALL_OPTIONS, TContextValues>) => MaybePromise<void>;
+ interface AgentInvocationHooks<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown, TContextValues extends object = AgentInvocationContextValues> {
++  "agent:error"?: AgentErrorHook<TRuntimeConfig, CALL_OPTIONS>;
+   "agent:finish"?: AgentFinishHook<TRuntimeConfig, CALL_OPTIONS>;
+   "agent:input"?: AgentInputHook<TRuntimeConfig, CALL_OPTIONS, TContextValues>;
+ }
+@@ -1384,6 +1386,7 @@ interface AgentUsageCost {
    amount: string;
    currency: "USD" | (string & {});
    estimated: boolean;
@@ -10964,10 +11025,10 @@ index 42dceaf5547844a5be77144261ccad7a1c53d3fd..27f95ac3af5d46fda73000be0fef8bff
  interface AgentUsageCredentialSource {
 diff --git a/dist/types-CW2XmfE7.d.ts b/dist/types-CW2XmfE7.d.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..6ce61a5ec6a1be055d8c3c6ea5e3e11ea513a387
+index 0000000000000000000000000000000000000000..b931ed6048140eea7df4cf4ffa6c2a3750e695cd
 --- /dev/null
 +++ b/dist/types-CW2XmfE7.d.ts
-@@ -0,0 +1,1484 @@
+@@ -0,0 +1,1486 @@
 +import { t as LocalHarnessSandboxOptions } from "./local-sandbox-G03FIxI_.js";
 +import { ExecutionAuthority, MaybePromise, MaybeResolvable, Resolvable, RuntimeCapabilities, RuntimeCapabilityHandle, RuntimeHostContext, RuntimeWaitUntil } from "@vite-hub/runtime";
 +import { Adapter, AdapterPostableMessage, IdentityResolver, StateAdapter, TranscriptsConfig } from "chat";
@@ -11551,8 +11612,10 @@ index 0000000000000000000000000000000000000000..6ce61a5ec6a1be055d8c3c6ea5e3e11e
 +  status: (input: AgentChannelDeliveryStatusInput, options?: AgentChannelDeliveryEffectIntentOptions) => AgentChannelDeliveryEffectIntent<"status">;
 +}
 +type AgentFinishHook<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown> = (event: AgentFinishHookEvent<TRuntimeConfig, CALL_OPTIONS>) => MaybePromise<void | AgentChannelDeliveryFinishEffectResult>;
++type AgentErrorHook<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown> = AgentFinishHook<TRuntimeConfig, CALL_OPTIONS>;
 +type AgentInputHook<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown, TContextValues extends object = AgentInvocationContextValues> = (context: AgentRunCallbackContext<TRuntimeConfig, CALL_OPTIONS, TContextValues>) => MaybePromise<void>;
 +interface AgentInvocationHooks<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, CALL_OPTIONS = unknown, TContextValues extends object = AgentInvocationContextValues> {
++  "agent:error"?: AgentErrorHook<TRuntimeConfig, CALL_OPTIONS>;
 +  "agent:finish"?: AgentFinishHook<TRuntimeConfig, CALL_OPTIONS>;
 +  "agent:input"?: AgentInputHook<TRuntimeConfig, CALL_OPTIONS, TContextValues>;
 +}
@@ -12452,7 +12515,6 @@ index 0000000000000000000000000000000000000000..6ce61a5ec6a1be055d8c3c6ea5e3e11e
 +type AgentAdapterFactory<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig, TOptions = unknown, Name extends WorkspaceName = WorkspaceName> = (context: ResolvedAgentRuntimeContext<TRuntimeConfig>) => MaybePromise<AgentAdapter<TOptions, TRuntimeConfig, Name>>;
 +//#endregion
 +export { AgentChannelDeliveryFinishEffectResult as $, isAttachmentPart as $i, AgentRegistryModule as $n, MaybePromise as $r, AgentHarnessSandboxProviderInput as $t, AgentCapabilityCliStandardSchemaResultSuccess as A, FilePart as Ai, AgentMessageChannelSettings as An, AgentTriggerInvokeResult as Ar, AgentChatStateContext as At, AgentCapabilityRuntimeContext as B, TextPart as Bi, AgentModelInstrumentation as Bn, AgentWebhookRegistrationDefinition as Br, AgentDriverKind as Bt, AgentCapabilityCliExecutionInput as C, AttachmentData as Ci, AgentInvocationExtensions as Cn, AgentToolSchema as Cr, AgentChatMessageHookArgs as Ct, AgentCapabilityCliResolver as D, CreateMessageOptions as Di, AgentInvokerOptions as Dn, AgentToolTransform as Dr, AgentChatPlatformsResolver as Dt, AgentCapabilityCliOutputFormat as E, AudioPart as Ei, AgentInvokerMeta as En, AgentToolStep as Er, AgentChatPlatformResolver as Et, AgentCapabilityHookName as F, MessageRole as Fi, AgentMessageLockScope as Fn, AgentUsageCost as Fr, AgentDeliveryArtifact as Ft, AgentChannelDeliveryEffectIntent as G, appendMessageText as Gi, AgentOutputExtensionEvent as Gn, ClaudeCodeAuthOptions as Gr, AgentFinishExtensions as Gt, AgentChannelDefinition as H, ToolInvocation as Hi, AgentModelResolver as Hn, AgentWorkflowRuntimeBinding as Hr, AgentExecution as Ht, AgentCapabilityHooks as I, RunEvent as Ii, AgentModelDriver as In, AgentUsageCredentialSource as Ir, AgentDeliveryArtifactPlacement as It, AgentChannelDeliveryEffectPayload as J, createMessage as Ji, AgentOutputExtensions as Jn, CodexAuthOptions as Jr, AgentHarnessCredentialSource as Jt, AgentChannelDeliveryEffectIntentOptions as K, applyStreamEvent as Ki, AgentOutputExtensionProvider as Kn, ClaudeCodeDriverOptions as Kr, AgentFinishHook as Kt, AgentCapabilityInput as L, SerializedMessages as Li, AgentModelExecutionInstrumentation as Ln, AgentUsageRecord as Lr, AgentDriver as Lt, AgentCapabilityContext as M, Message as Mi, AgentMessageDeliveryKind as Mn, AgentUIMessageStreamProjection as Mr, AgentChatTriggerHistory as Mt, AgentCapabilityDefinition as N, MessageMetadata as Ni, AgentMessageFilter as Nn, AgentUIMessageStreamProjectionResolver as Nr, AgentDefinition as Nt, AgentCapabilityCliRunContext as O, DataPart as Oi, AgentInvokerProfile as On, AgentTriggerContext as Or, AgentChatSendMessage as Ot, AgentCapabilityHandle as P, MessagePart as Pi, AgentMessageFilterContext as Pn, AgentUsage as Pr, AgentDefinitionCliOptions as Pt, AgentChannelDeliveryFinishEffectContext as Q, isAttachmentData as Qi, AgentRegistryHandlerOptions as Qn, DiscoveredAgentDefinition as Qr, AgentHarnessSandboxProvider as Qt, AgentCapabilityMode as R, SourcePart as Ri, AgentModelExecutionOptions as Rn, AgentWaitUntil as Rr, AgentDriverContribution as Rt, AgentCapabilityCliContribution as S, ApprovalRequestPart as Si, AgentInvocationContextValues as Sn, AgentToolResolverWithWorkspace as Sr, AgentChatMessage as St, AgentCapabilityCliOutputDefinition as T, AudioData as Ti, AgentInvoker as Tn, AgentToolStandardSchema as Tr, AgentChatPlatformAdapter as Tt, AgentChannelDeliveryEffectContext as U, ToolInvocationState as Ui, AgentModuleOptions as Un, BuiltInAgentDriver as Ur, AgentFinishEvent as Ut, AgentCapabilityTypeContract as V, ToolCallPart as Vi, AgentModelInstrumentationContext as Vn, AgentWebhookStateResolver as Vr, AgentEvalOptions as Vt, AgentChannelDeliveryEffectHandler as W, ToolResultPart as Wi, AgentOutputDefinition as Wn, BuiltInAgentDriverName as Wr, AgentFinishExtensionValues as Wt, AgentChannelDeliveryFinishEffect as X, getMessageText as Xi, AgentProvidersOptions as Xn, CodexDriverSandboxOptions as Xr, AgentHarnessDriverInput as Xt, AgentChannelDeliveryEffects as Y, deserializeMessages as Yi, AgentOutputRenderer as Yn, CodexDriverOptions as Yr, AgentHarnessDriver as Yt, AgentChannelDeliveryFinishEffectCallback as Z, getToolInvocations as Zi, AgentRegistry as Zn, CustomAgentDriver as Zr, AgentHarnessInstructions as Zt, AgentCapabilitiesInput as _, AgentRunEvents as _i, AgentInspectionModelMetadata as _n, AgentStateProviderOptions as _r, AgentChatCapabilityOptions as _t, AgentAdapterFactory as a, ResolvedAgentStateProviderOptions as ai, AgentHookOutcome as an, AgentRunInputContextValues as ar, AgentChannelDeliveryStatusInput as at, AgentCapabilitiesResolverContext as b, AgentMessagePhase as bi, AgentIntegrationsOptions as bn, AgentToolPolicyDecision as br, AgentChatEventHooks as bt, AgentAdapterInstructionsValue as c, WorkspaceAgentWorkspaceOptions as ci, AgentInput as cn, AgentRuntime as cr, AgentChannelFactory as ct, AgentAdapterRunContext as d, AgentRunEventPublisher as di, AgentInspectionConfigValue as dn, AgentRuntimeContext as dr, AgentChannelTriggerContext as dt, serializeMessages as ea, MaybeResolvable as ei, AgentHarnessSessionKey as en, AgentRunCallbackContext as er, AgentChannelDeliveryReactionInput as et, AgentAttachmentExecutionOptions as f, AgentRunEventReadOptions as fi, AgentInspectionDriverMetadata as fn, AgentRuntimeHooks as fr, AgentChannelWebhookManager as ft, AgentCapabilities as g, AgentRunEventSubscribeOptions as gi, AgentInspectionModelExecutionMetadata as gn, AgentSettings as gr, AgentChatAgentHookArgs as gt, AgentCallbackContext as h, AgentRunEventStoreResolver as hi, AgentInspectionMetadata as hn, AgentSchedulerProviderOptions as hr, AgentChatAgentBindingOptions as ht, AgentAdapter as i, ResolvedAgentRuntimeContext as ii, AgentHookObserverHooks as in, AgentRunInput as ir, AgentChannelDeliveryReplyStream as it, AgentCapabilityCliStandardSchemaV1 as j, ImagePart as ji, AgentMessageConcurrency as jn, AgentTriggerRunInvokeResult as jr, AgentChatStateResolver as jt, AgentCapabilityCliStandardSchemaResultFailure as k, ErrorPart as ki, AgentInvokerResolveContext as kn, AgentTriggerDefinition as kr, AgentChatSessionOptions as kt, AgentAdapterMetadataContext as l, AgentRunEvent as li, AgentInputHook as ln, AgentRuntimeBinding as lr, AgentChannelInput as lt, AgentCallSettingsInstrumentationContext as m, AgentRunEventStoreResolveContext as mi, AgentInspectionHarnessMetadata as mn, AgentSandboxProviderOptions as mr, AgentChannels as mt, AgentAccessWorkspaceScopeContext as n, Resolvable as ni, AgentHookObserver as nn, AgentRunDriver as nr, AgentChannelDeliveryReplyInput as nt, AgentAdapterInstructions as o, ResolvedAgentTriggerDefinition as oi, AgentHookOwner as on, AgentRunMetadata as or, AgentChannelDeliveryStatusPayload as ot, AgentCallSettingsInstrumentation as p, AgentRunEventStore as pi, AgentInspectionFileTreeItem as pn, AgentRuntimeName as pr, AgentChannelWebhookRegistrationDefinition as pt, AgentChannelDeliveryEffectKind as q, collectStreamEvents as qi, AgentOutputExtensionValues as qn, ClaudeCodeThinkingConfig as qr, AgentFinishHookEvent as qt, AgentActor as r, ResolvedAgentModuleOptions as ri, AgentHookObserverEvent as rn, AgentRunHandler as rr, AgentChannelDeliveryReplyPayload as rt, AgentAdapterInstructionsPart as s, WorkspaceAgentWorkspaceConfig as si, AgentHostIdentity as sn, AgentRunResult as sr, AgentChannelDeliveryStatusState as st, AgentAccessInvocationContextValue as t, validateMessage as ta, PublishedAgentDeliveryArtifact as ti, AgentHarnessWorkDir as tn, AgentRunContext as tr, AgentChannelDeliveryReactionPayload as tt, AgentAdapterResult as u, AgentRunEventInput as ui, AgentInspectionConfigMetadata as un, AgentRuntimeConfig as ur, AgentChannelInputs as ut, AgentCapabilitiesList as v, AgentRunEventsOptions as vi, AgentInspectionToolDefinition as vn, AgentToolDefinition as vr, AgentChatErrorHookArgs as vt, AgentCapabilityCliExecutionResult as w, AttachmentPart as wi, AgentInvocationHooks as wn, AgentToolSet as wr, AgentChatOptions as wt, AgentCapabilityCliCommand as x, ApprovalDecisionPart as xi, AgentInvocationContextStore as xn, AgentToolResolver as xr, AgentChatFinishExtension as xt, AgentCapabilitiesResolver as y, defineAgentRunEvents as yi, AgentIntegrationOption as yn, AgentToolPolicyContext as yr, AgentChatEventHookArgs as yt, AgentCapabilityPhase as z, StreamEvent as zi, AgentModelInput as zn, AgentWebhookInvocationOwnership as zr, AgentDriverContributionKind as zt };
-\ No newline at end of file
 diff --git a/dist/vite.d.ts b/dist/vite.d.ts
 index 6975e3327a5f1dcccfd1ac7f2fa673234e33fc9b..66cdb69ccaf18f1a3eb078fe80fa5e35f8f140ac 100644
 --- a/dist/vite.d.ts

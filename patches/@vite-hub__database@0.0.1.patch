@@ -144,19 +144,22 @@ index 488a9b407dfcf3cb34d043e256dfe2d8733a837a..f034b000df1898686356164ad4043c83
  export { nuxtModule as default, hubDb };
 \ No newline at end of file
 diff --git a/dist/nuxt.js b/dist/nuxt.js
-index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d0a0067cf 100644
+index 79568ffb529314614e31e7136d497193911fd35c..d7d26aa9c693133dee675310da3c4e87d55f6b87 100644
 --- a/dist/nuxt.js
 +++ b/dist/nuxt.js
-@@ -1,6 +1,6 @@
+@@ -1,7 +1,8 @@
  import { t as isPlainObject } from "./object-BbKda0MT.js";
 -import { r as writeFileIfChanged } from "./config-D4O1BX9H.js";
 -import { a as mergeCloudflareD1Bindings, i as hubDb$1, o as resolveCloudflareD1Binding, s as resolveViteHubProjectRoot } from "./vite-BhybkS79.js";
+-import { resolve } from "node:path";
 +import { n as resolveDBViteConfig, r as writeFileIfChanged } from "./config-D4O1BX9H.js";
 +import { a as mergeCloudflareD1Bindings, c as resolveViteHubProjectRoot, i as hubDb$1, o as resolveCloudflareD1Binding, s as resolveCloudflareD1Bindings } from "./vite-wjxBbGkz.js";
- import { resolve } from "node:path";
++import { cp, mkdir, rm } from "node:fs/promises";
++import { dirname, resolve } from "node:path";
  function deploymentPresetFromNitro(value) {
  	const normalized = value?.trim().toLowerCase().replaceAll("_", "-");
-@@ -21,7 +21,8 @@ function getHostingProvider(hosting) {
+ 	if (!normalized) return;
+@@ -21,7 +22,8 @@ function getHostingProvider(hosting) {
  //#region src/nuxt.ts
  const generatedNitroDatabaseMiddleware = ".vitehub/nitro/database/middleware.ts";
  const databaseDrizzleImport = "@vite-hub/database/drizzle";
@@ -166,11 +169,12 @@ index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d
  	const module = async function viteHubDatabaseNuxtModule(inlineOptions, nuxt) {
  		const nuxtOptions = nuxt.options;
  		const resolvedOptions = resolveDatabaseNuxtOptions(options, inlineOptions, nuxtOptions);
-@@ -38,20 +39,18 @@ function hubDb(options = {}) {
+@@ -38,20 +40,23 @@ function hubDb(options = {}) {
  			projectRoot: root
  		});
  		const d1 = resolveDatabaseNuxtD1Options(resolvedOptions, nuxtOptions);
 +		const discoveredD1Bindings = resolveDiscoveredDatabaseD1Bindings(resolvedOptions, root, nuxtOptions.serverDir ? [nuxtOptions.serverDir] : void 0);
++		const d1Bindings = mergeCloudflareD1Bindings([], [...d1?.d1Database ? [d1.d1Database] : [], ...discoveredD1Bindings]);
  		const hook = nuxt.hook;
  		if (typeof hook === "function") hook("nitro:config", async (config) => {
  			const provider = resolveNitroHostingProvider(config, nuxtOptions);
@@ -183,17 +187,37 @@ index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d
 -			}
 +			if (!nuxtOptions.dev && provider === "cloudflare") await installNitroCloudflareEnvBridge(config, root, factoryOptions.runtimeStateImport);
 +			if (d1) mergeNitroRuntimeContentConfig(config, d1);
-+			mergeNitroConfigCloudflareBindings(config, [...d1?.d1Database ? [d1.d1Database] : [], ...discoveredD1Bindings]);
++			if (!nuxtOptions.dev && provider === "cloudflare") {
++				const output = resolveNitroCloudflareD1Output(root, d1Bindings);
++				mergeNitroConfigCloudflareBindings(config, output.d1Databases);
++				installNitroCloudflareD1Output(config, output.migrations);
++			} else mergeNitroConfigCloudflareBindings(config, d1Bindings);
  		});
 -		if (!d1) return;
 -		mergeNuxtContentConfig(nuxtOptions, d1);
 -		mergeNitroCloudflareConfig(nuxtOptions, d1);
 +		if (d1) mergeNuxtContentConfig(nuxtOptions, d1);
-+		mergeNitroCloudflareBindings(nuxtOptions, [...d1?.d1Database ? [d1.d1Database] : [], ...discoveredD1Bindings]);
++		mergeNitroCloudflareBindings(nuxtOptions, d1Bindings);
  	};
  	module.getMeta = () => ({
  		configKey: "database",
-@@ -115,6 +114,10 @@ function resolveDatabaseNuxtD1Options(options, nuxtOptions) {
+@@ -87,6 +92,7 @@ function resolveDatabaseViteOptions(options) {
+ 		viteOptions.databaseId = options.databaseId;
+ 		viteOptions.databaseName = options.databaseName;
+ 		viteOptions.local = options.local;
++		viteOptions.migrationsDir = options.migrationsDir;
+ 		viteOptions.migrationsTable = options.migrationsTable;
+ 		viteOptions.previewDatabaseId = options.previewDatabaseId;
+ 	}
+@@ -99,6 +105,7 @@ function resolveDatabaseNuxtD1Options(options, nuxtOptions) {
+ 		database: "default",
+ 		databaseId: options.databaseId,
+ 		databaseName: options.databaseName,
++		migrationsDir: options.migrationsDir,
+ 		migrationsTable: options.migrationsTable,
+ 		previewDatabaseId: options.previewDatabaseId
+ 	});
+@@ -115,6 +122,10 @@ function resolveDatabaseNuxtD1Options(options, nuxtOptions) {
  		viteOptions: resolveDatabaseViteOptions(options) ?? {}
  	};
  }
@@ -204,7 +228,7 @@ index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d
  function installVitePlugin(viteConfig, options) {
  	const plugins = Array.isArray(viteConfig.plugins) ? viteConfig.plugins : [];
  	if (!plugins.some((plugin) => isPlainObject(plugin) && plugin.name === "@vite-hub/database/vite")) viteConfig.plugins = [hubDb$1(resolveDatabaseViteOptions(options)), ...plugins];
-@@ -140,7 +143,7 @@ function resolveNitroHostingProvider(config, nuxtOptions) {
+@@ -140,7 +151,7 @@ function resolveNitroHostingProvider(config, nuxtOptions) {
  	const preset = typeof config.preset === "string" ? config.preset : typeof nuxtOptions.nitro?.preset === "string" ? nuxtOptions.nitro.preset : process.env.NITRO_PRESET || process.env.SERVER_PRESET || process.env.VITEHUB_HOSTING;
  	return getHostingProvider(preset) ?? (typeof preset === "string" && /^deno(?:-|$)/.test(preset) ? "deno" : void 0);
  }
@@ -213,7 +237,7 @@ index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d
  	const handlers = Array.isArray(config.handlers) ? [...config.handlers] : [];
  	if (!handlers.some((handler) => isPlainObject(handler) && handler.handler === generatedNitroDatabaseMiddleware)) handlers.unshift({
  		handler: generatedNitroDatabaseMiddleware,
-@@ -154,11 +157,11 @@ async function installNitroCloudflareEnvBridge(config, root) {
+@@ -154,11 +165,11 @@ async function installNitroCloudflareEnvBridge(config, root) {
  	await writeFileIfChanged(resolve(root, generatedNitroDatabaseMiddleware), [
  		"import { env as vitehubEnv } from 'cloudflare:workers'",
  		"import { defineMiddleware } from 'nitro'",
@@ -227,7 +251,7 @@ index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d
  		"})",
  		""
  	].join("\n"));
-@@ -170,15 +173,15 @@ function mergeNitroExternal(value, addition) {
+@@ -170,15 +181,63 @@ function mergeNitroExternal(value, addition) {
  	if (typeof value === "function") return (source, importer, isResolved) => source === addition || Boolean(value(source, importer, isResolved));
  	return value;
  }
@@ -246,6 +270,54 @@ index 79568ffb529314614e31e7136d497193911fd35c..a69e3fd2af668d6924c8c0bc14f1426d
  	const wrangler = ensureRecord(ensureRecord(config, "cloudflare"), "wrangler");
 -	wrangler.d1_databases = mergeCloudflareD1Bindings(wrangler.d1_databases, [d1.d1Database]);
 +	wrangler.d1_databases = mergeCloudflareD1Bindings(wrangler.d1_databases, d1Databases);
++}
++function resolveNitroCloudflareD1Output(root, d1Databases) {
++	const migrations = [];
++	const destinations = /* @__PURE__ */ new Map();
++	return {
++		d1Databases: d1Databases.map((database) => {
++			if (!database.migrations_dir) return database;
++			const segment = database.binding.trim().replace(/[^a-z0-9._-]+/gi, "-").replace(/^[-.]+|[-.]+$/g, "") || "database";
++			const destination = `.vitehub/migrations/${segment}`;
++			const destinationKey = destination.toLowerCase();
++			const existing = destinations.get(destinationKey);
++			if (existing && existing !== database.binding) throw new Error(`[vitehub] D1 bindings ${JSON.stringify(existing)} and ${JSON.stringify(database.binding)} resolve to the same migration output directory.`);
++			destinations.set(destinationKey, database.binding);
++			migrations.push({
++				binding: database.binding,
++				destination,
++				source: resolve(root, database.migrations_dir)
++			});
++			return {
++				...database,
++				migrations_dir: destination
++			};
++		}),
++		migrations
++	};
++}
++function installNitroCloudflareD1Output(config, migrations) {
++	if (!migrations.length) return;
++	const modules = Array.isArray(config.modules) ? [...config.modules] : [];
++	modules.push((nitro) => {
++		nitro.hooks.hook("compiled", async () => {
++			const outputRoot = resolve(nitro.options.output.serverDir, ".vitehub/migrations");
++			await rm(outputRoot, {
++				force: true,
++				recursive: true
++			});
++			for (const migration of migrations) {
++				const destination = resolve(nitro.options.output.serverDir, ...migration.destination.split("/"));
++				await mkdir(dirname(destination), { recursive: true });
++				try {
++					await cp(migration.source, destination, { recursive: true });
++				} catch (cause) {
++					throw new Error(`[vitehub] Failed to materialize D1 migrations for binding ${JSON.stringify(migration.binding)} from ${JSON.stringify(migration.source)}.`, { cause });
++				}
++			}
++		});
++	});
++	config.modules = modules;
  }
  function hasNuxtContentModule(modules) {
  	return Array.isArray(modules) && modules.some((module) => {
@@ -268,7 +340,7 @@ index 276aac62cfd3631c298226827f95564199e979db..d4e5358e43b44304e03c73fbf234bee6
  			createClient,
  			drizzle
 diff --git a/dist/types-nPF7IReI.d.ts b/dist/types-nPF7IReI.d.ts
-index be7782a21685f630b998396e63e3a10a3b227eff..ff54e730a6cc49cff6d32415bce56b3ded29f211 100644
+index be7782a21685f630b998396e63e3a10a3b227eff..a82d10b7ee10dab4de6ad7ecbc084e77841c2671 100644
 --- a/dist/types-nPF7IReI.d.ts
 +++ b/dist/types-nPF7IReI.d.ts
 @@ -43,6 +43,7 @@ interface DatabaseRuntimeD1Options {

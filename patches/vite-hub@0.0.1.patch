@@ -83,6 +83,28 @@ index f835bd4172947774337c78ce6f78d164e8facc6a..87c1dc93b8e75196ddde961f97742ada
  	process.exit(exitCode);
  }).catch((error) => {
  	console.error(error instanceof Error ? error.message : error);
+diff --git a/dist/cloudflare-prerender.mjs b/dist/cloudflare-prerender.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4559d45b4280d277603fccb527b0463e8b897ee3
+--- /dev/null
++++ b/dist/cloudflare-prerender.mjs
+@@ -0,0 +1,16 @@
++export class DurableObject {
++  constructor(ctx, env) {
++    this.ctx = ctx
++    this.env = env
++  }
++}
++
++export class WorkflowEntrypoint {
++  constructor(ctx, env) {
++    this.ctx = ctx
++    this.env = env
++  }
++}
++
++export const env = {}
++export const waitUntil = () => {}
 diff --git a/dist/index.d.ts b/dist/index.d.ts
 index fb1c16f477f34d6254629af7b863d80e4870e230..39051de1f910ab55c87691cd4b36230866fe669d 100644
 --- a/dist/index.d.ts
@@ -185,10 +207,10 @@ index 25d6c94f006fd5016d717dd8f8b76f42c7be2ee7..4738f0e97e9017907228bda68f5e4def
  export { viteHubNuxtModule as default };
 diff --git a/dist/src-B7MeIOQc.js b/dist/src-B7MeIOQc.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..f7647cf567fd2b5b0bc13b568c432ec25980cf0e
+index 0000000000000000000000000000000000000000..662da77fe5a9966d8fc579872dea2b5515896725
 --- /dev/null
 +++ b/dist/src-B7MeIOQc.js
-@@ -0,0 +1,1136 @@
+@@ -0,0 +1,1156 @@
 +import { builtinModules, createRequire } from "node:module";
 +import { existsSync, readFileSync, statSync } from "node:fs";
 +import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -1070,11 +1092,24 @@ index 0000000000000000000000000000000000000000..f7647cf567fd2b5b0bc13b568c432ec2
 +function cloneRecord(value) {
 +	return value && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
 +}
++function configureCloudflarePrerender(config) {
++	const rollupConfig = cloneRecord(config.rollupConfig);
++	const external = rollupConfig.external;
++	if (Array.isArray(external)) rollupConfig.external = external.filter((value) => value !== "cloudflare:workers");
++	else if (external === "cloudflare:workers") delete rollupConfig.external;
++	else if (typeof external === "function") rollupConfig.external = (source, ...args) => source === "cloudflare:workers" ? false : external(source, ...args);
++	config.alias = {
++		...cloneRecord(config.alias),
++		"cloudflare:workers": fileURLToPath(new URL("./cloudflare-prerender.mjs", import.meta.url))
++	};
++	config.rollupConfig = rollupConfig;
++}
 +function normalizeNitroPreset(value) {
 +	return value.trim().toLowerCase().replaceAll("_", "-");
 +}
 +function deploymentNitroModule(plan, services, identity) {
 +	return (nitro) => {
++		if (deploymentPresetFromNitro(nitro.options.preset) !== plan.preset) return;
 +		nitro.hooks.hook("compiled", async () => {
 +			const outputDir = nitro.options.output.dir;
 +			const rootDir = nitro.options.rootDir;
@@ -1142,6 +1177,13 @@ index 0000000000000000000000000000000000000000..f7647cf567fd2b5b0bc13b568c432ec2
 +				if (typeof wrangler.name !== "string") wrangler.name = cloudflareResourceScope(name);
 +				cloudflare.wrangler = wrangler;
 +				nitro.cloudflare = cloudflare;
++				const hooks = cloneRecord(nitro.hooks);
++				const prerenderConfig = hooks["prerender:config"];
++				hooks["prerender:config"] = async (config) => {
++					if (typeof prerenderConfig === "function") await prerenderConfig(config);
++					configureCloudflarePrerender(config);
++				};
++				nitro.hooks = hooks;
 +			}
 +			const configuredPreset = typeof nitro.preset === "string" ? nitro.preset : void 0;
 +			const configuredHosting = process.env.VITEHUB_HOSTING;
@@ -1327,10 +1369,10 @@ index 0000000000000000000000000000000000000000..f7647cf567fd2b5b0bc13b568c432ec2
 +export { VITEHUB_NITRO_CONFIG_CONTEXT as n, VITEHUB_SERVER_DIRS as r, vitehub as t };
 diff --git a/dist/src-DG39-wmN.js b/dist/src-DG39-wmN.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..e05405e609018be45ca82a18d42e1e6d460cc5b0
+index 0000000000000000000000000000000000000000..49dd7da07564fc5850064dac3a2765cbcd32e543
 --- /dev/null
 +++ b/dist/src-DG39-wmN.js
-@@ -0,0 +1,1124 @@
+@@ -0,0 +1,1144 @@
 +import { builtinModules, createRequire } from "node:module";
 +import { existsSync, readFileSync, statSync } from "node:fs";
 +import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -2203,11 +2245,24 @@ index 0000000000000000000000000000000000000000..e05405e609018be45ca82a18d42e1e6d
 +function cloneRecord(value) {
 +	return value && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
 +}
++function configureCloudflarePrerender(config) {
++	const rollupConfig = cloneRecord(config.rollupConfig);
++	const external = rollupConfig.external;
++	if (Array.isArray(external)) rollupConfig.external = external.filter((value) => value !== "cloudflare:workers");
++	else if (external === "cloudflare:workers") delete rollupConfig.external;
++	else if (typeof external === "function") rollupConfig.external = (source, ...args) => source === "cloudflare:workers" ? false : external(source, ...args);
++	config.alias = {
++		...cloneRecord(config.alias),
++		"cloudflare:workers": fileURLToPath(new URL("./cloudflare-prerender.mjs", import.meta.url))
++	};
++	config.rollupConfig = rollupConfig;
++}
 +function normalizeNitroPreset(value) {
 +	return value.trim().toLowerCase().replaceAll("_", "-");
 +}
 +function deploymentNitroModule(plan, services, identity) {
 +	return (nitro) => {
++		if (deploymentPresetFromNitro(nitro.options.preset) !== plan.preset) return;
 +		nitro.hooks.hook("compiled", async () => {
 +			const outputDir = nitro.options.output.dir;
 +			const rootDir = nitro.options.rootDir;
@@ -2272,6 +2327,13 @@ index 0000000000000000000000000000000000000000..e05405e609018be45ca82a18d42e1e6d
 +				if (typeof wrangler.name !== "string") wrangler.name = cloudflareResourceScope(name);
 +				cloudflare.wrangler = wrangler;
 +				nitro.cloudflare = cloudflare;
++				const hooks = cloneRecord(nitro.hooks);
++				const prerenderConfig = hooks["prerender:config"];
++				hooks["prerender:config"] = async (config) => {
++					if (typeof prerenderConfig === "function") await prerenderConfig(config);
++					configureCloudflarePrerender(config);
++				};
++				nitro.hooks = hooks;
 +			}
 +			const configuredPreset = typeof nitro.preset === "string" ? nitro.preset : void 0;
 +			const configuredHosting = process.env.VITEHUB_HOSTING;
@@ -2455,6 +2517,49 @@ index 0000000000000000000000000000000000000000..e05405e609018be45ca82a18d42e1e6d
 +}
 +//#endregion
 +export { VITEHUB_NITRO_CONFIG_CONTEXT as n, VITEHUB_SERVER_DIRS as r, vitehub as t };
+diff --git a/dist/src-o6zB-soj.js b/dist/src-o6zB-soj.js
+index 88adf9f63bab11eb574a3deba4c1dd9b6abe6e43..91d76a2344a22f5cdd7279a622e15400fea91364 100644
+--- a/dist/src-o6zB-soj.js
++++ b/dist/src-o6zB-soj.js
+@@ -878,11 +878,24 @@ function resolveDeploymentIdentity(root, configuredName, workersBuildsName) {
+ function cloneRecord(value) {
+ 	return value && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
+ }
++function configureCloudflarePrerender(config) {
++	const rollupConfig = cloneRecord(config.rollupConfig);
++	const external = rollupConfig.external;
++	if (Array.isArray(external)) rollupConfig.external = external.filter((value) => value !== "cloudflare:workers");
++	else if (external === "cloudflare:workers") delete rollupConfig.external;
++	else if (typeof external === "function") rollupConfig.external = (source, ...args) => source === "cloudflare:workers" ? false : external(source, ...args);
++	config.alias = {
++		...cloneRecord(config.alias),
++		"cloudflare:workers": fileURLToPath(new URL("./cloudflare-prerender.mjs", import.meta.url))
++	};
++	config.rollupConfig = rollupConfig;
++}
+ function normalizeNitroPreset(value) {
+ 	return value.trim().toLowerCase().replaceAll("_", "-");
+ }
+ function deploymentNitroModule(plan, services, identity) {
+ 	return (nitro) => {
++		if (deploymentPresetFromNitro(nitro.options.preset) !== plan.preset) return;
+ 		nitro.hooks.hook("compiled", async () => {
+ 			const outputDir = nitro.options.output.dir;
+ 			const rootDir = nitro.options.rootDir;
+@@ -950,6 +963,13 @@ function deploymentPlugins(plan, requestedServices, blobEnabled, services, optio
+ 				if (typeof wrangler.name !== "string") wrangler.name = cloudflareResourceScope(name);
+ 				cloudflare.wrangler = wrangler;
+ 				nitro.cloudflare = cloudflare;
++				const hooks = cloneRecord(nitro.hooks);
++				const prerenderConfig = hooks["prerender:config"];
++				hooks["prerender:config"] = async (config) => {
++					if (typeof prerenderConfig === "function") await prerenderConfig(config);
++					configureCloudflarePrerender(config);
++				};
++				nitro.hooks = hooks;
+ 			}
+ 			const configuredPreset = typeof nitro.preset === "string" ? nitro.preset : void 0;
+ 			const configuredHosting = process.env.VITEHUB_HOSTING;
 diff --git a/package.json b/package.json
 index 7b7253ddd11723536163e1cebc9f2f654bd93a8c..5e0c556c7105aae2a1c9403ccf8bea7f6fb2b029 100644
 --- a/package.json

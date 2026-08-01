@@ -52,9 +52,11 @@ test("the Agent Definition delegates storage, cost, delivery, and rendering to V
   assert.match(agent, /db\(\{\s*mode:\s*"write"\s*\}\)/)
   assert.match(agent, /usageCost\(\{\s*format:\s*"usd"\s*\}\)/)
   assert.match(agent, /delivery:\s*"manual"/)
-  assert.match(agent, /context\.context\.set\("dashboardUrl", useRequestURL\(\)\.origin\)/)
+  assert.match(agent, /callSettings:\s*\{ maxRetries: 5 \}/)
+  assert.match(agent, /context\.context\.set\("dashboardUrl", new URL\(context\.request\.url\)\.origin\)/)
   assert.match(agent, /const cost = event\.extensions\.get\("usage-cost"\)\?\.cost\?\.formatted/)
   assert.match(agent, /return event\.reply\(await renderMarkdownTemplate\(event\.text \?\? "", \{ data: \{ cost \} \}\)\)/)
+  assert.doesNotMatch(agent, /event\.error/)
   assert.equal(agent.match(/event\.reply\(/g)?.length, 1)
 })
 
