@@ -38,6 +38,9 @@ importers:
       '@vite-hub/source':
         specifier: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/source@726719186e26617b0311e7426b9204be29c9cdfa
         version: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/source@726719186e26617b0311e7426b9204be29c9cdfa(zod@4.3.5)
+      ai-v7:
+        specifier: npm:ai@7.0.19
+        version: ai@7.0.19(zod@4.3.5)
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(@cloudflare/workers-types@5.20260724.1)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)(kysely@0.29.4)(sql.js@1.14.1)

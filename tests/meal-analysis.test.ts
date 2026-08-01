@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { completeAlbumAnalyses, isolateFirstAlbumImage } from "../server/utils/album-analysis.ts"
 import { caloriesAgentOutputSchema, mealAnalysisSchema } from "../server/utils/meal-analysis.ts"
 
 const meal = {
@@ -24,4 +25,24 @@ test("meal analysis rejects an explicit consumed time without an offset", () => 
 test("meal output always contains an analyses array", () => {
   assert.equal(caloriesAgentOutputSchema.safeParse({ kind: "meal", analyses: meal }).success, false)
   assert.equal(caloriesAgentOutputSchema.safeParse({ kind: "meal", analyses: [meal] }).success, true)
+})
+
+test("an album runs one analysis call per image and preserves order", async () => {
+  const images = [
+    { mediaType: "image/jpeg", type: "image" as const, url: "https://example.com/first.jpg" },
+    { mediaType: "image/jpeg", type: "image" as const, url: "https://example.com/second.jpg" },
+  ]
+  const message = { id: "telegram:191", parts: images, role: "user" as const }
+  const album = isolateFirstAlbumImage([message], message.id)
+  assert.ok(album)
+  assert.deepEqual(message.parts, [images[0]])
+
+  const calls = [images[0]!.url]
+  const analyses = await completeAlbumAnalyses(meal, album, async (image) => {
+    calls.push(image.url)
+    return { ...meal, items: [{ ...meal.items[0], calories: 2 }], totalCalories: 2 }
+  })
+
+  assert.deepEqual(calls, ["https://example.com/first.jpg", "https://example.com/second.jpg"])
+  assert.deepEqual(analyses.map(analysis => analysis.totalCalories), [131, 2])
 })

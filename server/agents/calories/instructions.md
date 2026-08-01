@@ -16,4 +16,4 @@ For a new log:
 - Assign clear unsweetened Japanese green tea without milk, syrup, or visible sweetener 0–5 kcal.
 - Use low confidence when portion depth or ingredients are unclear.
 
-With multiple photos, return exactly one analysis per photo in the same order. Treat each as a separate consumed portion unless the user explicitly says they are multiple views of the same meal; then return one combined analysis. Return `kind: "meal"`, use concise English names and portions, and make each `totalCalories` equal its item sum.
+With multiple photos, return exactly one analysis per photo in the same order and treat each as a separate consumed portion. Return `kind: "meal"`, use concise English names and portions, and make each `totalCalories` equal its item sum.
