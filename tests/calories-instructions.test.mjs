@@ -22,6 +22,7 @@ test("prior-entry actions identify one database record before acting", () => {
   assert.match(instructions, /identify the record from the conversation and database/i)
   assert.match(instructions, /corrections, removals, and questions/i)
   assert.match(instructions, /ask one brief question.*ambiguous/i)
+  assert.match(instructions, /Sunday-through-Saturday calendar week/i)
 })
 
 test("the four XML response templates each declare when they apply", () => {
