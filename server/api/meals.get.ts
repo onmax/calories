@@ -1,31 +1,38 @@
-import { defineHandler } from "h3"
-import { useSource } from "@vite-hub/source"
-import { sql } from "drizzle-orm"
-import "../sources/meals"
-import database, * as schema from "../databases/config"
+import { desc } from "drizzle-orm";
+import { defineCachedHandler } from "nitro/cache";
+import database, * as schema from "../databases/config";
 
-export default defineHandler(async (event) => {
-  event.res.headers.set("Cache-Control", "private, no-store")
-  const [items, [storedCost]] = await Promise.all([
-    useSource("meals").items(),
-    database.select({
-      value: sql<number>`coalesce(sum(${schema.meals.costUsd}), 0)`.mapWith(Number),
-    }).from(schema.meals),
-  ])
-  return {
-    costUsd: storedCost?.value ?? 0,
-    meals: items.flatMap(({ data: meal }) => meal ? [{
-      ...meal,
-      analyzedAt: meal.analyzedAt?.toISOString(),
-      caption: meal.caption || undefined,
-      confidence: meal.confidence || undefined,
-      createdAt: meal.createdAt.toISOString(),
-      error: meal.error || undefined,
-      model: meal.model || undefined,
-      photoUrl: meal.photo
-        ? `/photos/${meal.photo.key.split("/").map(encodeURIComponent).join("/")}`
-        : undefined,
-      totalCalories: meal.totalCalories ?? undefined,
-    }] : []),
-  }
-})
+export default defineCachedHandler(
+  async () => {
+    const meals = await database
+      .select({
+        caption: schema.meals.caption,
+        confidence: schema.meals.confidence,
+        createdAt: schema.meals.createdAt,
+        id: schema.meals.id,
+        items: schema.meals.items,
+        photoPath: schema.meals.photoPath,
+        totalCalories: schema.meals.totalCalories,
+      })
+      .from(schema.meals)
+      .orderBy(desc(schema.meals.createdAt))
+      .limit(100);
+
+    return {
+      meals: meals.map(({ photoPath, ...meal }) => ({
+        ...meal,
+        caption: meal.caption || undefined,
+        confidence: meal.confidence || undefined,
+        createdAt: meal.createdAt.toISOString(),
+        photoUrl: photoPath
+          ? `/photos/${photoPath.split("/").map(encodeURIComponent).join("/")}`
+          : undefined,
+        totalCalories: meal.totalCalories ?? undefined,
+      })),
+    };
+  },
+  {
+    maxAge: 1,
+    swr: false,
+  },
+);

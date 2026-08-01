@@ -7,7 +7,7 @@ useHead({
       content: "A read-only record of meals estimated from Telegram photos.",
     },
   ],
-})
+});
 </script>
 
 <template>

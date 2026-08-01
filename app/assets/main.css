@@ -37,7 +37,12 @@ body,
 html {
   background: var(--canvas);
   color: var(--ink);
-  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
 }
@@ -74,8 +79,7 @@ img {
   grid-template-rows: 4rem minmax(0, 1fr);
   overflow: hidden;
   background:
-    radial-gradient(circle at 8% 0%, rgb(255 255 255 / 80%), transparent 26rem),
-    var(--canvas);
+    radial-gradient(circle at 8% 0%, rgb(255 255 255 / 80%), transparent 26rem), var(--canvas);
 }
 
 .app-header {
@@ -292,7 +296,10 @@ img {
   padding: 0;
   color: var(--ink);
   cursor: pointer;
-  transition: transform 140ms var(--ease-out), background-color 180ms ease, box-shadow 180ms ease;
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .calorie-ring::before {
@@ -362,204 +369,8 @@ img {
   cursor: default;
 }
 
-.calorie-ring:active:not(:disabled),
-.meal-card:active {
+.calorie-ring:active:not(:disabled) {
   transform: scale(0.97);
-}
-
-.day-meals {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
-  border-top: 1px solid var(--line);
-  padding-top: clamp(0.75rem, 1.5vh, 1rem);
-}
-
-.day-meals-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 1.5rem;
-}
-
-.day-meals-heading > div {
-  min-width: 0;
-}
-
-.day-meals-heading h2,
-.day-meals-heading span,
-.day-energy {
-  margin: 0;
-}
-
-.day-meals-heading h2 {
-  overflow: hidden;
-  font-size: clamp(0.9rem, 1.1vw, 1.05rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.day-meals-heading > div > span {
-  display: block;
-  margin-top: 0.15rem;
-  color: var(--muted);
-  font-size: 0.6875rem;
-}
-
-.day-energy {
-  display: flex;
-  flex: none;
-  align-items: baseline;
-  gap: 0.35rem;
-}
-
-.day-energy strong {
-  font-size: clamp(1.5rem, 2.2vw, 2.15rem);
-  font-weight: 600;
-  letter-spacing: -0.055em;
-}
-
-.day-energy span {
-  color: var(--muted);
-  font-size: 0.6875rem;
-}
-
-.meal-strip {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  gap: 0.75rem;
-  margin-top: 0.65rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-inline: contain;
-  padding: 0.2rem 0.2rem 0.35rem;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-}
-
-.meal-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.meal-card {
-  position: relative;
-  width: clamp(8.5rem, 16vw, 12rem);
-  height: 100%;
-  min-width: clamp(8.5rem, 16vw, 12rem);
-  overflow: hidden;
-  border: 0;
-  border-radius: 1rem;
-  background: var(--canvas-deep);
-  padding: 0;
-  color: var(--cream);
-  cursor: pointer;
-  scroll-snap-align: start;
-  text-align: left;
-  transition: transform 140ms var(--ease-out), box-shadow 180ms ease;
-}
-
-.meal-card.selected {
-  box-shadow: 0 0 0 0.2rem var(--coral), 0 0.75rem 1.5rem rgb(58 48 36 / 14%);
-}
-
-.meal-card img,
-.meal-card-photo-placeholder,
-.meal-card-shade {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.meal-card img {
-  object-fit: cover;
-}
-
-.meal-card-photo-placeholder {
-  display: grid;
-  place-items: center;
-  background: var(--canvas-deep);
-  color: var(--muted);
-}
-
-.meal-card-photo-placeholder svg {
-  width: 1.5rem;
-}
-
-.meal-card-shade {
-  background: linear-gradient(180deg, rgb(13 18 15 / 32%), transparent 42%, rgb(13 18 15 / 82%));
-  pointer-events: none;
-}
-
-.meal-card-time,
-.meal-card-copy {
-  position: absolute;
-  z-index: 1;
-  right: 0.75rem;
-  left: 0.75rem;
-}
-
-.meal-card-time {
-  top: 0.65rem;
-  color: rgb(247 242 232 / 82%);
-  font-size: 0.625rem;
-  font-weight: 650;
-}
-
-.meal-card-copy {
-  bottom: 0.65rem;
-}
-
-.meal-card-copy strong,
-.meal-card-copy span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.meal-card-copy strong {
-  font-size: clamp(1.35rem, 2vw, 1.85rem);
-  font-weight: 650;
-  letter-spacing: -0.05em;
-  line-height: 1;
-}
-
-.meal-card-copy strong small {
-  color: rgb(247 242 232 / 72%);
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0;
-}
-
-.meal-card-copy span {
-  margin-top: 0.25rem;
-  color: rgb(247 242 232 / 72%);
-  font-size: 0.6875rem;
-  text-transform: capitalize;
-}
-
-.inline-state,
-.empty-day {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
-  min-height: 0;
-  margin-top: 0.65rem;
-  border: 1px dashed var(--line-strong);
-  border-radius: 1rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.inline-state svg,
-.empty-day svg {
-  width: 1rem;
 }
 
 .analysis-panel {
@@ -586,7 +397,9 @@ img {
   scrollbar-width: thin;
   transform: translateY(0);
   opacity: 1;
-  transition: transform 140ms var(--ease-out), opacity 140ms ease;
+  transition:
+    transform 140ms var(--ease-out),
+    opacity 140ms ease;
 }
 
 @starting-style {
@@ -628,7 +441,10 @@ img {
   cursor: pointer;
   opacity: 0.6;
   scroll-snap-align: start;
-  transition: transform 140ms var(--ease-out), border-color 160ms ease, opacity 160ms ease;
+  transition:
+    transform 140ms var(--ease-out),
+    border-color 160ms ease,
+    opacity 160ms ease;
 }
 
 .meal-carousel button[aria-pressed="true"] {
@@ -858,7 +674,6 @@ img {
   font-weight: 700;
 }
 
-.analysis-state,
 .analysis-empty {
   display: grid;
   place-content: center;
@@ -866,39 +681,13 @@ img {
   text-align: center;
 }
 
-.analysis-state {
-  grid-template-columns: auto 1fr;
-  justify-items: start;
-  gap: 0.75rem;
-  border-top: 1px solid var(--forest-line);
-  padding-top: 1rem;
-  text-align: left;
-}
-
-.analysis-state svg,
 .analysis-empty svg {
   width: 1.1rem;
   color: var(--yellow);
 }
 
-.analysis-state h3,
-.analysis-state p,
 .analysis-empty h2 {
   margin: 0;
-}
-
-.analysis-state h3 {
-  font-size: 0.8125rem;
-}
-
-.analysis-state p {
-  margin-top: 0.25rem;
-  color: rgb(247 242 232 / 48%);
-  font-size: 0.75rem;
-}
-
-.failed-state svg {
-  color: var(--coral);
 }
 
 .analysis-empty {
@@ -917,23 +706,9 @@ img {
   font-weight: 500;
 }
 
-.spinning {
-  animation: spin 800ms linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (hover: hover) and (pointer: fine) {
   .calorie-ring:hover:not(:disabled) {
     transform: translateY(-0.1rem);
-  }
-
-  .meal-card:hover {
-    transform: translateY(-0.12rem);
   }
 }
 
@@ -1072,59 +847,6 @@ img {
     font-size: 0.5rem;
   }
 
-  .day-meals {
-    padding-top: 0.45rem;
-  }
-
-  .day-meals-heading h2 {
-    font-size: 0.72rem;
-  }
-
-  .day-meals-heading > div > span {
-    display: none;
-  }
-
-  .day-energy strong {
-    font-size: 1.2rem;
-  }
-
-  .day-energy span {
-    font-size: 0.55rem;
-  }
-
-  .meal-strip {
-    gap: 0.55rem;
-    margin-top: 0.35rem;
-    padding: 0.15rem 0.2rem 0.3rem;
-  }
-
-  .meal-card {
-    width: 7.5rem;
-    min-width: 7.5rem;
-    border-radius: 0.8rem;
-  }
-
-  .meal-card-time {
-    top: 0.5rem;
-    right: 0.55rem;
-    left: 0.55rem;
-    font-size: 0.52rem;
-  }
-
-  .meal-card-copy {
-    right: 0.55rem;
-    bottom: 0.5rem;
-    left: 0.55rem;
-  }
-
-  .meal-card-copy strong {
-    font-size: 1.15rem;
-  }
-
-  .meal-card-copy span {
-    font-size: 0.56rem;
-  }
-
   .analysis-panel {
     padding: 0;
   }
@@ -1252,9 +974,10 @@ img {
     }
   }
 
-  .calorie-ring,
-  .meal-card {
-    transition: box-shadow 180ms ease, background-color 180ms ease;
+  .calorie-ring {
+    transition:
+      box-shadow 180ms ease,
+      background-color 180ms ease;
   }
 }
 
@@ -1345,7 +1068,10 @@ img {
   color: var(--ink) !important;
   cursor: pointer;
   outline-offset: -0.15rem;
-  transition: transform 120ms var(--ease-out), border-color 140ms ease, box-shadow 140ms ease !important;
+  transition:
+    transform 120ms var(--ease-out),
+    border-color 140ms ease,
+    box-shadow 140ms ease !important;
 }
 
 .food-calendar-trigger:active:not([data-disabled]) {

@@ -1,4 +1,4 @@
-import { env, type EnvViteUserConfig } from "vite-hub/env"
+import { env, type EnvViteUserConfig } from "vite-hub/env";
 
 export default defineNuxtConfig({
   compatibilityDate: "2026-07-24",
@@ -9,17 +9,18 @@ export default defineNuxtConfig({
       title: "Calories",
     },
   },
-  modules: [
-    "@nuxt/ui",
-    "vite-hub/nuxt",
-  ],
+  modules: ["@nuxt/ui", "vite-hub/nuxt"],
   vitehub: {
     preset: "cloudflare",
     agent: true,
     blob: {
       serve: { route: "/photos" },
     },
-    database: true,
+    database: {
+      driver: "d1",
+      databaseId: env({ source: env.source("CLOUDFLARE_D1_DATABASE_ID") }),
+      databaseName: "vitehub-calories",
+    },
   },
   css: ["~/assets/main.css"],
   ui: {
@@ -37,7 +38,9 @@ export default defineNuxtConfig({
   },
   hooks: {
     "nitro:config"(config) {
-      config.handlers = config.handlers?.filter(handler => handler.route !== "/api/_nuxt_icon/:collection")
+      config.handlers = config.handlers?.filter(
+        (handler) => handler.route !== "/api/_nuxt_icon/:collection",
+      );
     },
   },
   vite: {
@@ -72,11 +75,6 @@ export default defineNuxtConfig({
   } satisfies EnvViteUserConfig,
   devtools: { enabled: false },
   nitro: {
-    serverAssets: [{
-      baseName: "calories-agent",
-      dir: "server/agents/calories",
-      pattern: "reply.md",
-    }],
     cloudflare: {
       wrangler: {
         observability: { enabled: true },
@@ -97,4 +95,4 @@ export default defineNuxtConfig({
     },
     typeCheck: true,
   },
-})
+});
