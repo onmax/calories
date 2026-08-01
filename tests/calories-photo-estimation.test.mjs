@@ -30,3 +30,18 @@ test("each photo analysis is isolated from prior meals", () => {
   assert.match(agent, /triggerHistory:\s*"none"/);
   assert.doesNotMatch(agent, /triggerHistory:\s*\{/);
 });
+
+test("photo persistence completes before a meal can be treated as logged", () => {
+  assert.match(
+    instructions,
+    /new photo meal.*upload.*current input attachment.*before inserting/is,
+  );
+  assert.match(
+    instructions,
+    /duplicate only when.*record is complete.*photo_path.*items.*total_calories/is,
+  );
+  assert.match(
+    instructions,
+    /incomplete.*repair.*current attachment.*without adding.*calories again/is,
+  );
+});
