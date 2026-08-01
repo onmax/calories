@@ -1,11 +1,12 @@
 import { defineAgent, gateway } from "vite-hub/agent"
-import { db, usageCost } from "vite-hub/agent/capabilities"
+import { blob, db, usageCost } from "vite-hub/agent/capabilities"
 import { telegram } from "vite-hub/agent/channels"
 import { renderMarkdownTemplate } from "vite-hub/markdown-template"
 import { useServerEnv } from "#vitehub/env/server"
 
 export default defineAgent({
   capabilities: [
+    blob({ mode: "write" }),
     db({ mode: "write" }),
     usageCost({ format: "usd" }),
   ],

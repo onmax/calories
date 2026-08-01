@@ -52,6 +52,7 @@ test("instruction composition resolves the dashboard URL but preserves the final
 })
 
 test("the Agent Definition delegates storage, cost, delivery, and rendering to ViteHub", () => {
+  assert.match(agent, /blob\(\{\s*mode:\s*"write"\s*\}\)/)
   assert.match(agent, /db\(\{\s*mode:\s*"write"\s*\}\)/)
   assert.match(agent, /usageCost\(\{\s*format:\s*"usd"\s*\}\)/)
   assert.match(agent, /delivery:\s*"manual"/)
@@ -73,4 +74,10 @@ test("the simplified Agent Definition has no domain output schema or local cost 
 test("the persistent prompt stays compact", () => {
   const words = instructions.trim().split(/\s+/)
   assert.ok(words.length <= 250, `expected at most 250 words, received ${words.length}`)
+})
+
+test("new photo meals persist their current input attachment", () => {
+  assert.match(instructions, /upload the current input attachment with `blob_edit`/i)
+  assert.match(instructions, /`meals\/RECORD_ID\/original`/)
+  assert.match(instructions, /pathname and media type to the meal's photo columns/i)
 })
