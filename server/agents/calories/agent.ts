@@ -99,12 +99,12 @@ export default defineAgent({
         : `${usageCost?.estimated ? "~" : ""}${formatUsd(costUsd)}`
       if (result.kind === "reply") return event.reply(`${result.text}\n\n${cost}`)
 
-      const analyses = Array.isArray(result.analyses) ? result.analyses : [result.analyses]
+      const analyses = result.analyses
       const messages = event.input.messages ?? []
       const run = event.invocation.run
       const currentMessage = messages.find(message => message.id === run?.messageId) ?? messages.at(-1)
       const images = currentMessage?.parts.filter((part): part is ImagePart => part.type === "image") ?? []
-      if (analyses.length > 1 && analyses.length !== images.length) {
+      if (images.length > 1 && analyses.length !== images.length) {
         throw new Error("The Calories Agent must return one analysis per image.")
       }
       const caption = currentMessage?.parts

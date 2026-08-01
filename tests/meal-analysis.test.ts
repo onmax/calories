@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { mealAnalysisSchema } from "../server/utils/meal-analysis.ts"
+import { caloriesAgentOutputSchema, mealAnalysisSchema } from "../server/utils/meal-analysis.ts"
 
 const meal = {
   assumptions: [],
@@ -19,4 +19,9 @@ test("meal analysis rejects an explicit consumed time without an offset", () => 
     ...meal,
     consumedAt: "2026-07-29T19:30:00",
   }))
+})
+
+test("meal output always contains an analyses array", () => {
+  assert.equal(caloriesAgentOutputSchema.safeParse({ kind: "meal", analyses: meal }).success, false)
+  assert.equal(caloriesAgentOutputSchema.safeParse({ kind: "meal", analyses: [meal] }).success, true)
 })

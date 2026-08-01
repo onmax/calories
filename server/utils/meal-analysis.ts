@@ -17,10 +17,7 @@ export const mealAnalysisSchema = z.object({
 
 export type MealAnalysis = z.infer<typeof mealAnalysisSchema>
 
-export const mealAnalysisOutputSchema = z.union([
-  mealAnalysisSchema,
-  z.array(mealAnalysisSchema).min(1),
-])
+export const mealAnalysisOutputSchema = z.array(mealAnalysisSchema).min(1)
 
 export type MealAnalysisOutput = z.infer<typeof mealAnalysisOutputSchema>
 
