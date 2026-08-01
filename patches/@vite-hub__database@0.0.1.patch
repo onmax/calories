@@ -281,7 +281,7 @@ index be7782a21685f630b998396e63e3a10a3b227eff..ff54e730a6cc49cff6d32415bce56b3d
    cli?: false | {
 diff --git a/dist/vite-BFNPrO7q.js b/dist/vite-BFNPrO7q.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..48fab24fc7ce63029efdd0771c05b2219fb1939c
+index 0000000000000000000000000000000000000000..7a860b81547494bba45e0d4350bfbe5cad87cc13
 --- /dev/null
 +++ b/dist/vite-BFNPrO7q.js
 @@ -0,0 +1,1479 @@
@@ -1252,8 +1252,8 @@ index 0000000000000000000000000000000000000000..48fab24fc7ce63029efdd0771c05b221
 +	return [
 +		"{",
 +		`      ...${serializeDatabaseConfig(base)},`,
-+		`      cloudflare: ${definitionVariable}.cloudflare ? { binding: ${definitionVariable}.cloudflare.binding ?? ${JSON.stringify(base.cloudflare?.binding ?? getDefaultCloudflareBindingName(name))}, databaseId: ${definitionVariable}.cloudflare.databaseId, databaseName: ${definitionVariable}.cloudflare.databaseName, http: ${http}, migrationsDir: ${JSON.stringify(base.migrationsDir)}, migrationsTable: ${definitionVariable}.cloudflare.migrationsTable, previewDatabaseId: ${definitionVariable}.cloudflare.previewDatabaseId } : undefined,`,
-+		`      connection: ${definitionVariable}.connection ? { authToken: ${definitionVariable}.connection.authToken ?? ${renderConfigExpression(base.connection?.authToken)}, url: ${definitionVariable}.connection.url ?? ${renderConfigExpression(base.connection?.url)} } : ${renderConfigExpression(base.connection)},`,
++		`      cloudflare: Object.hasOwn(${definitionVariable}, "cloudflare") ? { binding: ${definitionVariable}.cloudflare.binding ?? ${JSON.stringify(base.cloudflare?.binding ?? getDefaultCloudflareBindingName(name))}, databaseId: ${definitionVariable}.cloudflare.databaseId, databaseName: ${definitionVariable}.cloudflare.databaseName, http: ${http}, migrationsDir: ${JSON.stringify(base.migrationsDir)}, migrationsTable: ${definitionVariable}.cloudflare.migrationsTable, previewDatabaseId: ${definitionVariable}.cloudflare.previewDatabaseId } : undefined,`,
++		`      connection: Object.hasOwn(${definitionVariable}, "connection") ? { authToken: ${definitionVariable}.connection.authToken ?? ${renderConfigExpression(base.connection?.authToken)}, url: ${definitionVariable}.connection.url ?? ${renderConfigExpression(base.connection?.url)} } : ${renderConfigExpression(base.connection)},`,
 +		`      drizzle: ${definitionVariable}.drizzle ?? {},`,
 +		"    }"
 +	].join("\n");
