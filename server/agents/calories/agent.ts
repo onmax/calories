@@ -44,7 +44,7 @@ export default defineAgent({
         errorFallbackText: ({ error }) => {
           const status = errorStatus(error);
           return status !== undefined && status >= 500 && status < 600
-            ? "AI is temporarily unavailable. Please try again in a minute. If this meal already appears in your dashboard, don’t resend it."
+            ? "AI is temporarily unavailable. Try again in a minute, unless the meal is already in your dashboard."
             : "I couldn’t handle that. Please try again.";
         },
         fallbackStreamingPlaceholderText: "Thinking…",
