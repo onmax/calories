@@ -31,6 +31,11 @@ test("each photo analysis is isolated from prior meals", () => {
   assert.doesNotMatch(agent, /triggerHistory:\s*\{/);
 });
 
+test("each Telegram turn keeps its own webhook lifetime", () => {
+  assert.match(agent, /concurrency:\s*"parallel"/);
+  assert.doesNotMatch(agent, /concurrency:\s*"queue"/);
+});
+
 test("photo persistence completes before a meal can be treated as logged", () => {
   assert.match(
     instructions,

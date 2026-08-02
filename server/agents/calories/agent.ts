@@ -15,7 +15,7 @@ export default defineAgent({
       allowedUserIds: () => [useServerEnv().telegram.allowedUserId],
       botToken: () => useServerEnv().telegram.botToken,
       messages: {
-        concurrency: "queue",
+        concurrency: "parallel",
         delivery: "manual",
         errorFallbackText: "I couldn’t handle that. Please try again.",
         fallbackStreamingPlaceholderText: "Thinking…",
