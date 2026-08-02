@@ -43,7 +43,7 @@ test("model failures fall through providers without retrying the whole call", ()
     agent,
     /fallbacks:\s*\["google\/gemini-3-flash",\s*"openai\/gpt-5\.4-mini"\]/,
   );
-  assert.match(agent, /timeout:\s*40_000/);
+  assert.match(agent, /timeout:\s*25_000/);
 });
 
 test("photo persistence completes before a meal can be treated as logged", () => {

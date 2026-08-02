@@ -46,6 +46,11 @@ export default defineNuxtConfig({
   vite: {
     env: {
       server: {
+        aiGateway: {
+          apiKey: env({
+            source: env.source("VERCEL_AI_GATEWAY_TOKEN"),
+          }),
+        },
         calories: {
           timeZone: env({
             optional: true,
@@ -55,6 +60,13 @@ export default defineNuxtConfig({
         telegram: {
           allowedUserId: env({
             source: env.source("TELEGRAM_ALLOWED_USER_ID"),
+          }),
+          botToken: env({
+            source: env.source("TELEGRAM_TOKEN"),
+          }),
+          webhookSecret: env({
+            optional: true,
+            source: env.source("TELEGRAM_WEBHOOK_SECRET"),
           }),
         },
       },

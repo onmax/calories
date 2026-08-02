@@ -11,21 +11,24 @@ export default defineAgent({
   channels: {
     telegram: {
       allowedUserIds: () => [useServerEnv().telegram.allowedUserId],
+      botToken: () => useServerEnv().telegram.botToken,
+      webhookSecret: () => useServerEnv().telegram.webhookSecret || false,
       messages: {
         concurrency: "parallel",
         delivery: "manual",
         errorFallbackText: "I couldn’t handle that. Please try again.",
         fallbackStreamingPlaceholderText: "Thinking…",
         triggerHistory: "none",
-        timeout: 40_000,
+        timeout: 25_000,
       },
     },
   },
   driver: {
     maxRetries: 0,
-    model: gateway("moonshotai/kimi-k3", {
+    model: gateway("moonshotai/kimi-k3", () => ({
+      apiKey: useServerEnv().aiGateway.apiKey,
       fallbacks: ["google/gemini-3-flash", "openai/gpt-5.4-mini"],
-    }),
+    })),
   },
   hooks: {
     "agent:input"(context) {
