@@ -4,25 +4,12 @@ import { telegram } from "vite-hub/agent/channels";
 import { renderMarkdownTemplate } from "vite-hub/markdown-template";
 import { useServerEnv } from "#vitehub/env/server";
 
-function formatUsageCost(
-  cost: { amount: string; currency: string; estimated: boolean } | undefined,
-) {
-  if (!cost) return "Cost unavailable";
-  const amount = Number(cost.amount);
-  const fractionDigits = amount > 0 && amount < 0.01 ? 6 : 2;
-  const value = Number.isFinite(amount)
-    ? new Intl.NumberFormat("en-US", {
-        currency: cost.currency,
-        maximumFractionDigits: fractionDigits,
-        minimumFractionDigits: fractionDigits,
-        style: "currency",
-      }).format(amount)
-    : `${cost.currency} ${cost.amount}`;
-  return `${cost.estimated ? "~" : ""}${value}`;
-}
-
 export default defineAgent({
-  capabilities: [blob({ mode: "write" }), db({ mode: "write" }), usageCost()],
+  capabilities: [
+    blob({ mode: "write" }),
+    db({ mode: "write" }),
+    usageCost({ format: "usd" }),
+  ],
   channels: {
     telegram: telegram({
       allowedUserIds: () => [useServerEnv().telegram.allowedUserId],
@@ -53,7 +40,9 @@ export default defineAgent({
       }
     },
     async "agent:finish"(event) {
-      const cost = formatUsageCost(event.extensions.get("usage-cost")?.cost);
+      const cost =
+        event.extensions.get("usage-cost")?.cost?.formatted ??
+        "Cost unavailable";
       return event.reply(
         await renderMarkdownTemplate("{{{ body }}}\n\n{{ cost }}", {
           data: { body: event.text ?? "", cost },

@@ -1,0 +1,67 @@
+diff --git a/dist/capabilities.d.ts b/dist/capabilities.d.ts
+index 3fb86cc73888a5205e75047da5a4fc42a49f3bc8..5d4fe8bc006b35b4c8ebd9fe348acdef168541e0 100644
+--- a/dist/capabilities.d.ts
++++ b/dist/capabilities.d.ts
+@@ -777,6 +777,7 @@ declare function vercelAiGatewayPricing(options?: VercelAiGatewayPricingOptions)
+ //#endregion
+ //#region src/capabilities/usage-cost.d.ts
+ interface UsageCostOptions {
++  format?: "usd";
+   pricing?: AgentUsagePricing;
+ }
+ declare global {
+diff --git a/dist/capabilities.js b/dist/capabilities.js
+index 7cdc898996c84c4888bce65108b0b3ce1d20618d..ee67604955dff7887c9c6833f74107e35859aa31 100644
+--- a/dist/capabilities.js
++++ b/dist/capabilities.js
+@@ -5222,8 +5222,8 @@ function usageCost(options = {}) {
+ 		metadata: { kind: "usage-cost" },
+ 		async finish(event) {
+ 			const record = event.invocation.usage;
+-			if (!record || record.cost || !record.usage) return record;
+-			try {
++			if (!record) return record;
++			if (!record.cost && record.usage) try {
+ 				const cost = await pricing({
+ 					model: record.model,
+ 					response: record.response,
+@@ -5234,10 +5234,27 @@ function usageCost(options = {}) {
+ 			} catch {
+ 				return record;
+ 			}
++			if (record.cost && options.format === "usd") {
++				const formatted = formatUsd(record.cost);
++				if (formatted) record.cost.formatted = formatted;
++			}
+ 			return record;
+ 		}
+ 	}), { [eagerFinishExtensionSymbol]: true });
+ }
++function formatUsd(cost) {
++	if (!cost || cost.currency !== "USD") return;
++	const amount = Number(cost.amount);
++	if (!Number.isFinite(amount)) return;
++	const fractionDigits = amount > 0 && amount < .01 ? 6 : 2;
++	const formatted = new Intl.NumberFormat("en-US", {
++		currency: "USD",
++		maximumFractionDigits: fractionDigits,
++		minimumFractionDigits: fractionDigits,
++		style: "currency"
++	}).format(amount);
++	return `${cost.estimated ? "~" : ""}${formatted}`;
++}
+ //#endregion
+ //#region src/capabilities/workspace-shell.ts
+ function workspaceShell(options = {}) {
+diff --git a/dist/types-DSKkoiBv.d.ts b/dist/types-DSKkoiBv.d.ts
+index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..00ddebd4949526002e5f2785792bca5af1a822c6 100644
+--- a/dist/types-DSKkoiBv.d.ts
++++ b/dist/types-DSKkoiBv.d.ts
+@@ -1394,6 +1394,7 @@ interface AgentUsageCost {
+   amount: string;
+   currency: "USD" | (string & {});
+   estimated: boolean;
++  formatted?: string;
+   source: "custom" | "estimated" | "provider" | "vercel-ai-gateway" | (string & {});
+ }
+ interface AgentUsageCredentialSource {

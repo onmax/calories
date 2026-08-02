@@ -45,3 +45,9 @@ test("photo persistence completes before a meal can be treated as logged", () =>
     /incomplete.*repair.*current attachment.*without adding.*calories again/is,
   );
 });
+
+test("usage cost formatting stays inside the capability", () => {
+  assert.match(agent, /usageCost\(\{\s*format:\s*"usd"\s*\}\)/);
+  assert.match(agent, /extensions\.get\("usage-cost"\)\?\.cost\?\.formatted/);
+  assert.doesNotMatch(agent, /formatUsageCost|Intl\.NumberFormat/);
+});
