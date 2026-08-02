@@ -46,6 +46,12 @@ test("model failures fall through providers without retrying the whole call", ()
   assert.match(agent, /timeout:\s*25_000/);
 });
 
+test("server failures explain how to retry without duplicating a saved meal", () => {
+  assert.match(agent, /status\s*>=\s*500\s*&&\s*status\s*<\s*600/);
+  assert.match(agent, /AI is temporarily unavailable/);
+  assert.match(agent, /already appears in your dashboard.*don’t resend/is);
+});
+
 test("photo persistence completes before a meal can be treated as logged", () => {
   assert.match(
     instructions,

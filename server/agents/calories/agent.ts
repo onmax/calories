@@ -2,6 +2,31 @@ import { defineAgent, gateway } from "vite-hub/agent";
 import { blob, db, usageCost } from "vite-hub/agent/capabilities";
 import { useServerEnv } from "#vitehub/env/server";
 
+function errorStatus(error: unknown): number | undefined {
+  const seen = new Set<object>();
+  let current = error;
+
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const failure = current as {
+      cause?: unknown;
+      response?: { status?: unknown };
+      status?: unknown;
+      statusCode?: unknown;
+    };
+    const status = typeof failure.statusCode === "number"
+      ? failure.statusCode
+      : typeof failure.status === "number"
+        ? failure.status
+        : typeof failure.response?.status === "number"
+          ? failure.response.status
+          : undefined;
+
+    if (status !== undefined) return status;
+    current = failure.cause;
+  }
+}
+
 export default defineAgent({
   capabilities: [
     blob({ mode: "write" }),
@@ -16,7 +41,12 @@ export default defineAgent({
       messages: {
         concurrency: "parallel",
         delivery: "manual",
-        errorFallbackText: "I couldn’t handle that. Please try again.",
+        errorFallbackText: ({ error }) => {
+          const status = errorStatus(error);
+          return status !== undefined && status >= 500 && status < 600
+            ? "AI is temporarily unavailable. Please try again in a minute. If this meal already appears in your dashboard, don’t resend it."
+            : "I couldn’t handle that. Please try again.";
+        },
         fallbackStreamingPlaceholderText: "Thinking…",
         triggerHistory: "none",
         timeout: 25_000,
