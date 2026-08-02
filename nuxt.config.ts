@@ -56,20 +56,7 @@ export default defineNuxtConfig({
           allowedUserId: env({
             source: env.source("TELEGRAM_ALLOWED_USER_ID"),
           }),
-          botToken: env({
-            secret: true,
-            source: env.source("TELEGRAM_TOKEN"),
-          }),
-          webhookSecret: env({
-            optional: true,
-            secret: true,
-            source: env.source("TELEGRAM_WEBHOOK_SECRET"),
-          }),
         },
-        vercelAiGatewayToken: env({
-          secret: true,
-          source: env.source("VERCEL_AI_GATEWAY_TOKEN"),
-        }),
       },
     },
   } satisfies EnvViteUserConfig,

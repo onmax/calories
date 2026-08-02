@@ -38,9 +38,10 @@ test("each Telegram turn keeps its own webhook lifetime", () => {
 
 test("model failures fall through providers without retrying the whole call", () => {
   assert.match(agent, /maxRetries:\s*0/);
+  assert.match(agent, /gateway\("moonshotai\/kimi-k3"/);
   assert.match(
     agent,
-    /models:\s*\["google\/gemini-3-flash",\s*"openai\/gpt-5\.4-mini"\]/,
+    /fallbacks:\s*\["google\/gemini-3-flash",\s*"openai\/gpt-5\.4-mini"\]/,
   );
   assert.match(agent, /timeout:\s*40_000/);
 });
@@ -62,6 +63,6 @@ test("photo persistence completes before a meal can be treated as logged", () =>
 
 test("usage cost formatting stays inside the capability", () => {
   assert.match(agent, /usageCost\(\{\s*format:\s*"usd"\s*\}\)/);
-  assert.match(agent, /extensions\.get\("usage-cost"\)\?\.cost\?\.formatted/);
+  assert.match(agent, /invocation\.usage\?\.cost\?\.formatted/);
   assert.doesNotMatch(agent, /formatUsageCost|Intl\.NumberFormat/);
 });

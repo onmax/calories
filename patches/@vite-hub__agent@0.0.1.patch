@@ -1,5 +1,76 @@
+diff --git a/dist/agent-driver-ktEa_Dj0.js b/dist/agent-driver-ktEa_Dj0.js
+index de466a28832a8055710fc77ec63c13d991500636..fe71bbae82fa64ce82159ed26414be88cfc01190 100644
+--- a/dist/agent-driver-ktEa_Dj0.js
++++ b/dist/agent-driver-ktEa_Dj0.js
+@@ -30,6 +30,7 @@ function normalizeHarnessCredentialSource(value) {
+ const modelDriverKeys = new Set([
+ 	"execution",
+ 	"instructions",
++	"maxRetries",
+ 	"model",
+ 	"output"
+ ]);
+@@ -152,8 +153,17 @@ function normalizeExplicitAgentDriver(driver) {
+ 	if (keys.length !== 1) throw new Error("[vitehub] defineAgent({ driver }) requires exactly one of driver.model, driver.harness, or driver.run.");
+ 	if (keys[0] === "model") {
+ 		assertNoUnsupportedOptions(driver, modelDriverKeys, "defineAgent({ driver: { model } })");
++		if (driver.maxRetries !== void 0 && (!Number.isInteger(driver.maxRetries) || driver.maxRetries < 0)) throw new TypeError("[vitehub] defineAgent({ driver.maxRetries }) must be a non-negative integer.");
++		if (driver.maxRetries !== void 0 && driver.execution?.callSettings?.maxRetries !== void 0) throw new TypeError("[vitehub] defineAgent({ driver.maxRetries }) cannot be combined with driver.execution.callSettings.maxRetries.");
++		const execution = driver.maxRetries === void 0 ? driver.execution : {
++			...driver.execution || {},
++			callSettings: {
++				...driver.execution?.callSettings || {},
++				maxRetries: driver.maxRetries
++			}
++		};
+ 		return {
+-			execution: driver.execution,
++			execution,
+ 			instructions: driver.instructions,
+ 			kind: "model",
+ 			model: driver.model,
+diff --git a/dist/ai-sdk.js b/dist/ai-sdk.js
+index 57bbcedd169963cd12cf82b856763f55350398ac..5b72d8a25a99b1c7f630fc754aeabe2525a065df 100644
+--- a/dist/ai-sdk.js
++++ b/dist/ai-sdk.js
+@@ -814,6 +814,25 @@ async function instrumentCallSettings(callSettings, instrumentations, context) {
+ 	}
+ 	return patch;
+ }
++const agentModelCallSettingsSymbol = Symbol.for("vitehub.agent.modelCallSettings");
++function mergeModelCallSettings(defaults, overrides) {
++	const defaultProviderOptions = defaults?.providerOptions;
++	const overrideProviderOptions = overrides?.providerOptions;
++	const defaultGatewayOptions = defaultProviderOptions?.gateway;
++	const overrideGatewayOptions = overrideProviderOptions?.gateway;
++	return {
++		...defaults || {},
++		...overrides || {},
++		...defaultProviderOptions || overrideProviderOptions ? { providerOptions: {
++			...defaultProviderOptions || {},
++			...overrideProviderOptions || {},
++			...defaultGatewayOptions || overrideGatewayOptions ? { gateway: {
++				...defaultGatewayOptions || {},
++				...overrideGatewayOptions || {}
++			} } : {}
++		} } : {}
++	};
++}
+ async function createAgent(options, context, fallbackCapture) {
+ 	const { ToolLoopAgent, isStepCount, jsonSchema } = await loadAiSdk();
+ 	const execution = options.execution;
+@@ -855,7 +874,8 @@ async function createAgent(options, context, fallbackCapture) {
+ 	};
+ 	const { instructions: _instructions, execution: _execution, model: _model, tools: _tools } = options;
+ 	const stepLimit = execution?.stepLimit;
+-	const baseCallSettings = { ...execution?.callSettings || {} };
++	const modelCallSettings = model && (typeof model === "object" || typeof model === "function") ? model[agentModelCallSettingsSymbol] : void 0;
++	const baseCallSettings = mergeModelCallSettings(modelCallSettings, execution?.callSettings);
+ 	const instrumentedCallSettings = await instrumentCallSettings(baseCallSettings, instrumentations, {
+ 		...runtime,
+ 		actor: context.actor,
 diff --git a/dist/capabilities.d.ts b/dist/capabilities.d.ts
-index 3fb86cc73888a5205e75047da5a4fc42a49f3bc8..5d4fe8bc006b35b4c8ebd9fe348acdef168541e0 100644
+index 3fb86cc73888a5205e75047da5a4fc42a49f3bc8..966d443d136d858b7d6233ae4dcbfcf95369c689 100644
 --- a/dist/capabilities.d.ts
 +++ b/dist/capabilities.d.ts
 @@ -777,6 +777,7 @@ declare function vercelAiGatewayPricing(options?: VercelAiGatewayPricingOptions)
@@ -53,11 +124,203 @@ index 7cdc898996c84c4888bce65108b0b3ce1d20618d..ee67604955dff7887c9c6833f74107e3
  //#endregion
  //#region src/capabilities/workspace-shell.ts
  function workspaceShell(options = {}) {
+diff --git a/dist/channels-CguXrcB9.js b/dist/channels-CguXrcB9.js
+index 176762085180e348f387bebb49d5f001eb5663a8..d16fd0bd18260ceaff8ee249c7bf436d733974ea 100644
+--- a/dist/channels-CguXrcB9.js
++++ b/dist/channels-CguXrcB9.js
+@@ -1543,6 +1543,12 @@ function cleanSecret(value) {
+ 	const secret = unseal(value);
+ 	return typeof secret === "string" && secret.trim() ? secret.trim() : void 0;
+ }
++function telegramEnvValue(name, context) {
++	return context?.cloudflare?.env?.[name] ?? (typeof process === "object" && process?.env ? process.env[name] : void 0);
++}
++function telegramEnvSecretToken(context) {
++	return cleanSecret(telegramEnvValue("TELEGRAM_WEBHOOK_SECRET_TOKEN", context)) || false;
++}
+ const serverEnvModuleId = "#vitehub/env/server";
+ async function githubEnv(event) {
+ 	const fallback = typeof process === "object" && process?.env ? {
+@@ -2148,7 +2154,10 @@ function githubWebhookDefaults(webhooks, app) {
+ 	return Array.isArray(webhooks) ? webhooks.map(apply) : apply(webhooks);
+ }
+ function telegramWebhookDefaults(webhooks) {
+-	const defaults = { secretHeader: "x-telegram-bot-api-secret-token" };
++	const defaults = {
++		secretHeader: "x-telegram-bot-api-secret-token",
++		secretToken: telegramEnvSecretToken
++	};
+ 	if (webhooks === void 0 || webhooks === true) return defaults;
+ 	if (webhooks === false) return false;
+ 	const apply = (webhook) => ({
+@@ -2164,10 +2173,10 @@ function telegramAdapterResolver(options) {
+ 			options.allowedUserIds === void 0 ? void 0 : resolveRuntimeValue(options.allowedUserIds, context),
+ 			options.apiBaseUrl === void 0 ? void 0 : resolveRuntimeValue(options.apiBaseUrl, context),
+ 			options.apiUrl === void 0 ? void 0 : resolveRuntimeValue(options.apiUrl, context),
+-			options.botToken === void 0 ? void 0 : resolveRuntimeValue(options.botToken, context),
++			options.botToken === void 0 ? telegramEnvValue("TELEGRAM_BOT_TOKEN", context) : resolveRuntimeValue(options.botToken, context),
+ 			options.longPolling === void 0 ? void 0 : resolveRuntimeValue(options.longPolling, context),
+ 			options.userName === void 0 ? void 0 : resolveRuntimeValue(options.userName, context),
+-			options.webhookSecret === void 0 ? void 0 : resolveRuntimeValue(options.webhookSecret, context)
++			options.webhookSecret === void 0 ? telegramEnvValue("TELEGRAM_WEBHOOK_SECRET_TOKEN", context) : resolveRuntimeValue(options.webhookSecret, context)
+ 		]);
+ 		const { createTelegramAdapter } = await import("@chat-adapter/telegram");
+ 		return createTelegramAdapter({
+diff --git a/dist/index-BldXeQo_.d.ts b/dist/index-BldXeQo_.d.ts
+index 9cfebd9773fdbbea2d5d46f1f0ecb3fb0e7cb36c..c1f9f9bd8a83abc44042d8e91e62f4b595c8d14c 100644
+--- a/dist/index-BldXeQo_.d.ts
++++ b/dist/index-BldXeQo_.d.ts
+@@ -72,6 +72,7 @@ type GatewaySecret = string | {
+ };
+ interface GatewayModelSettings extends Omit<GatewayProviderSettings, "apiKey"> {
+   apiKey?: GatewaySecret;
++  fallbacks?: readonly string[];
+ }
+ type GatewayModelSettingsResolver<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = MaybeResolvable<GatewayModelSettings, AgentAdapterMetadataContext<TRuntimeConfig>>;
+ declare function gateway<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig>(model: string, settings?: GatewayModelSettingsResolver<TRuntimeConfig>): AgentModelResolver<TRuntimeConfig>;
+diff --git a/dist/routes-JvN7Sft5.js b/dist/routes-JvN7Sft5.js
+index a114e3810832cc498f3f626188d6e91c3897efdc..b1a0d5794369fe6a20fa8ebf0c598c0aeeccf106 100644
+--- a/dist/routes-JvN7Sft5.js
++++ b/dist/routes-JvN7Sft5.js
+@@ -1549,7 +1549,22 @@ async function isChatMessageAuthorized(agent, context, registration, thread, mes
+ }
+ const cloudflareChatBackgroundTimeoutMs = 25e3;
+ function chatInvocationTimeout(timeout, maximum) {
+-	return timeout === void 0 || maximum === void 0 ? timeout : Math.min(timeout, maximum);
++	if (maximum === void 0) return timeout;
++	return timeout === void 0 ? maximum : Math.min(timeout, maximum);
++}
++async function enforceChatInvocationTimeout(task, timeout) {
++	if (timeout === void 0) return await task;
++	let timeoutId;
++	try {
++		return await Promise.race([
++			task,
++			new Promise((_resolve, reject) => {
++				timeoutId = setTimeout(() => reject(new Error(`Chat invocation timed out after ${timeout}ms.`)), timeout);
++			})
++		]);
++	} finally {
++		if (timeoutId) clearTimeout(timeoutId);
++	}
+ }
+ async function handleChatSdkMessage(agent, context, registration, thread, message, deliveryKind, options, state, messageContext, maximumInvocationTimeout) {
+ 	let input;
+@@ -1611,7 +1626,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 			}
+ 		}, invoker), chatFinish);
+ 		if (!streamsPhasedReplies) {
+-			const text = await collectAgentOutput(manualDelivery ? await streamAgent(agent, runContext, invocationInput, { output: "events" }) : await runAgentInline(agent, runContext, invocationInput), progress?.update);
++			const text = await enforceChatInvocationTimeout(collectAgentOutput(manualDelivery ? await streamAgent(agent, runContext, invocationInput, { output: "events" }) : await runAgentInline(agent, runContext, invocationInput), progress?.update), maximumInvocationTimeout === void 0 ? void 0 : invocationInput.timeout);
+ 			if (!manualDelivery && text) {
+ 				if (!await postDiscordSplitContent(thread, { markdown: text })) await thread.post({ markdown: text });
+ 			}
+diff --git a/dist/src-CQPEDpFA.js b/dist/src-CQPEDpFA.js
+index cbfb2353964c76f4129d5345ceb0fd51a60bfb62..ff2f22fc24852d38e081c6f245e0f8c6cd592c5b 100644
+--- a/dist/src-CQPEDpFA.js
++++ b/dist/src-CQPEDpFA.js
+@@ -3,7 +3,7 @@ import { $ as isMessageChannelTitleEffectIntent, D as normalizeAgentInvokerOptio
+ import { a as tryAgentPromise, i as runAgentEffect, n as agentEffectCauseValues, o as EffectBoundaryFailure } from "./effect-runtime-CMnYHpMr.js";
+ import { a as streamAgentOutputToEvents, c as usageRecordFromStreamChunk, d as finalChannelOutputSelectedSymbol, i as resolveAgentUsageRecord, l as synthesizedAgentOutputSymbol, n as finalTextFromAgentOutput, o as toAgentRunResult, r as hasTraceableStreamResult, s as toAgentStreamEvent, t as agentResultKind } from "./agent-output-CyEZfgrQ.js";
+ import { _ as withAgentToolStepReporting, a as traceAgentInvocationFinish, b as validateAgentOutput, c as traceAgentStreamEvents, f as readAgentErrorProperty, i as traceAgentInvocationError, l as agentErrorDetails, m as applyAgentToolPolicies, o as traceAgentInvocationStart, p as toAgentPublicError, r as traceAgentChannelDeliveryEffect, s as traceAgentStreamEvent, u as agentErrorMessage, v as withJsonCompatibleToolOutputs } from "./trace-GIqXV-YM.js";
+-import { N as getChatCapabilityOptions, h as createStatusDeliveryEffectIntent, j as defineChatCapability, m as createReplyDeliveryEffectIntent, o as messageChannelSupportsTitleEffect, p as createReactionDeliveryEffectIntent, s as messageChannelTitleSupportContextKey, t as channelHasCustomTitleEffect } from "./channels-CguXrcB9.js";
++import { N as getChatCapabilityOptions, a as builtInHttp, d as builtInTelegram, f as builtInWebChat, h as createStatusDeliveryEffectIntent, i as builtInGitHub, j as defineChatCapability, l as builtInSlack, m as createReplyDeliveryEffectIntent, o as messageChannelSupportsTitleEffect, p as createReactionDeliveryEffectIntent, r as builtInDiscord, s as messageChannelTitleSupportContextKey, t as channelHasCustomTitleEffect, u as builtInTeams } from "./channels-CguXrcB9.js";
+ import { t as normalizeAgentDriver } from "./agent-driver-ktEa_Dj0.js";
+ import { a as parseScheduledAgentTurnInput, b as withReadableStreamCleanup, f as createAgentUIMessageStreamResponse, g as normalizeUiMessageStream, h as isUIMessageStreamResult, l as scheduledAgentTurnContextKey, m as isUIMessageStreamResponse, n as createBackedAgentInvocationController, o as scheduledAgentChannelIdsContextKey, p as finalizeUiMessageStreamOutput, r as startLiveAgentInvocation, s as scheduledAgentNameContextKey, v as uiMessageStreamFromResponse, x as agentOutputEventObserverContextKey, y as uiMessageTextDelta } from "./agent-invocation-D9tJRj_l.js";
+ import { n as loadAgentWorkflowRuntimeStateModule, t as loadAgentWorkflowModule } from "./workflow-runtime-loaders-T5jPFIAJ.js";
+@@ -509,18 +509,25 @@ function shareBoxSessions(box) {
+ }
+ //#endregion
+ //#region src/gateway.ts
++const agentModelCallSettingsSymbol = Symbol.for("vitehub.agent.modelCallSettings");
+ function unseal(value) {
+ 	return typeof value === "object" ? value.unseal() : value;
+ }
+ function gateway(model, settings = {}) {
+ 	if (typeof model !== "string" || !model.trim()) throw new TypeError("[vitehub] gateway() requires a non-empty model identifier.");
+ 	return async (context) => {
+-		const { apiKey, ...providerSettings } = await resolveRuntimeValue(settings, context);
++		const { apiKey, fallbacks, ...providerSettings } = await resolveRuntimeValue(settings, context);
++		if (fallbacks !== void 0 && (!Array.isArray(fallbacks) || fallbacks.some((fallback) => typeof fallback !== "string" || !fallback.trim()))) throw new TypeError("[vitehub] gateway({ fallbacks }) must be an array of non-empty model identifiers.");
+ 		const { createGateway } = await import("@ai-sdk/gateway");
+-		return createGateway({
++		const resolvedModel = createGateway({
+ 			...providerSettings,
+ 			...apiKey ? { apiKey: unseal(apiKey) } : {}
+ 		})(model);
++		if (fallbacks?.length && resolvedModel && (typeof resolvedModel === "object" || typeof resolvedModel === "function")) Object.defineProperty(resolvedModel, agentModelCallSettingsSymbol, {
++			configurable: true,
++			value: { providerOptions: { gateway: { models: [...fallbacks] } } }
++		});
++		return resolvedModel;
+ 	};
+ }
+ //#endregion
+@@ -877,8 +884,23 @@ function normalizeAgentChannels(inputs) {
+ 	if (!inputs) return inputs;
+ 	let channels;
+ 	for (const [id, input] of Object.entries(inputs)) {
+-		if (typeof input !== "function") continue;
+-		const channel = input();
++		if (input && typeof input === "object" && typeof input.kind === "string") continue;
++		let channel;
++		if (typeof input === "function") channel = input();
++		else {
++			const factory = {
++				discord: builtInDiscord,
++				github: builtInGitHub,
++				http: builtInHttp,
++				slack: builtInSlack,
++				teams: builtInTeams,
++				telegram: builtInTelegram,
++				webChat: builtInWebChat
++			}[id];
++			if (!factory) throw new TypeError(`[vitehub] Channel "${id}" must use defineChannel(), a Channel Kind helper, or a built-in Channel key.`);
++			if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError(`[vitehub] Built-in Channel "${id}" options must be an object.`);
++			channel = factory(input);
++		}
+ 		if (!channel || typeof channel !== "object" || typeof channel.kind !== "string") throw new TypeError(`[vitehub] Channel factory "${id}" must return an Agent Channel definition.`);
+ 		channels ||= { ...inputs };
+ 		channels[id] = channel;
 diff --git a/dist/types-DSKkoiBv.d.ts b/dist/types-DSKkoiBv.d.ts
-index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..00ddebd4949526002e5f2785792bca5af1a822c6 100644
+index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..a5ab3fac8c8afd6e4291dc2bcfa1036630f6e01b 100644
 --- a/dist/types-DSKkoiBv.d.ts
 +++ b/dist/types-DSKkoiBv.d.ts
-@@ -1394,6 +1394,7 @@ interface AgentUsageCost {
+@@ -5,6 +5,7 @@ import { Box, BoxDefinition, BoxRequirement } from "@vite-hub/box";
+ import { StandardJSONSchemaV1, StandardSchemaV1 } from "@standard-schema/spec";
+ import { JSONSchema7 } from "json-schema";
+ import { ReadonlyWorkspaceFacade, WorkspaceDefinition, WorkspaceDefinitionInput, WorkspaceName, WorkspaceRules, WorkspaceSourceInput, WritableWorkspaceFacade } from "@vite-hub/workspace";
++import type { AgentChannelOptions, AgentWebChatChannelOptions, DiscordChannelOptions, GitHubChannelOptions, TelegramChannelOptions } from "./channels.js";
+ 
+ //#region src/messages.d.ts
+ type MessageRole = "assistant" | "system" | "tool" | "user";
+@@ -922,6 +923,7 @@ interface AgentModelDriver<TRuntimeConfig extends AgentRuntimeConfig = AgentRunt
+   harness?: never;
+   instructions?: AgentAdapterInstructions<TRuntimeConfig>;
+   kind?: never;
++  maxRetries?: number;
+   model: AgentModelResolver<TRuntimeConfig>;
+   output?: AgentOutputDefinition<TOutput>;
+   permissionMode?: never;
+@@ -1251,7 +1253,16 @@ interface AgentChannelDefinition<TRuntimeConfig extends AgentRuntimeConfig = Age
+ }
+ type AgentChannelFactory<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = () => AgentChannelDefinition<TRuntimeConfig>;
+ type AgentChannelInput<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = AgentChannelDefinition<TRuntimeConfig> | AgentChannelFactory<TRuntimeConfig>;
+-type AgentChannelInputs<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = Record<string, AgentChannelInput<TRuntimeConfig>>;
++type AgentBuiltInChannelInput<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = AgentChannelInput<TRuntimeConfig> | AgentChannelOptions<TRuntimeConfig> | AgentWebChatChannelOptions<TRuntimeConfig> | DiscordChannelOptions<TRuntimeConfig> | GitHubChannelOptions<TRuntimeConfig> | TelegramChannelOptions<TRuntimeConfig>;
++type AgentChannelInputs<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = Record<string, AgentBuiltInChannelInput<TRuntimeConfig>> & {
++  discord?: AgentChannelInput<TRuntimeConfig> | DiscordChannelOptions<TRuntimeConfig>;
++  github?: AgentChannelInput<TRuntimeConfig> | GitHubChannelOptions<TRuntimeConfig>;
++  http?: AgentChannelInput<TRuntimeConfig> | AgentChannelOptions<TRuntimeConfig>;
++  slack?: AgentChannelInput<TRuntimeConfig> | AgentChannelOptions<TRuntimeConfig>;
++  teams?: AgentChannelInput<TRuntimeConfig> | AgentChannelOptions<TRuntimeConfig>;
++  telegram?: AgentChannelInput<TRuntimeConfig> | TelegramChannelOptions<TRuntimeConfig>;
++  webChat?: AgentChannelInput<TRuntimeConfig> | AgentWebChatChannelOptions<TRuntimeConfig>;
++};
+ type AgentChannels<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = Record<string, AgentChannelDefinition<TRuntimeConfig>>;
+ interface AgentChatBaseOptions<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> extends AgentMessageChannelSettings<TRuntimeConfig> {
+   adapters?: never;
+@@ -1394,6 +1405,7 @@ interface AgentUsageCost {
    amount: string;
    currency: "USD" | (string & {});
    estimated: boolean;

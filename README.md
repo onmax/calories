@@ -11,7 +11,7 @@ Production: <https://vitehub-calories.maximogarciamtnez.workers.dev>
 - ViteHub Agent connects Telegram to a model with database, blob, and usage-cost Capabilities, then streams the reply through Chat SDK.
 - ViteHub Blob stores original photos privately in Cloudflare R2.
 - ViteHub Database uses generated local artifacts during development and a Cloudflare D1 binding in production.
-- Vercel AI SDK sends images to Vercel AI Gateway using `VERCEL_AI_GATEWAY_TOKEN`.
+- Vercel AI SDK sends images to Vercel AI Gateway using `AI_GATEWAY_API_KEY`.
 
 ## Input lifecycle
 
@@ -65,7 +65,7 @@ vp run telegram:webhook
 vp run telegram:webhook -- --apply --confirm-origin https://your-deployed-origin.example
 ```
 
-Set `VITEHUB_DEPLOYMENT_URL` in `.env` to the exact deployed HTTPS origin before running these commands; ViteHub will not infer a Worker or preview URL. `TELEGRAM_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` must also be present. The first command inspects Telegram and prints the proposed route without mutating it, while the second applies only after the confirmation origin matches. `TELEGRAM_ALLOWED_USER_ID` is still required by the running app, and Telegram requires the user to start the bot once before it can learn the numeric ID or send a message back.
+Set `VITEHUB_DEPLOYMENT_URL` in `.env` to the exact deployed HTTPS origin before running these commands; ViteHub will not infer a Worker or preview URL. `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET_TOKEN` must also be present. The first command inspects Telegram and prints the proposed route without mutating it, while the second applies only after the confirmation origin matches. `TELEGRAM_ALLOWED_USER_ID` is still required by the running app, and Telegram requires the user to start the bot once before it can learn the numeric ID or send a message back.
 
 ## Compatibility patch
 

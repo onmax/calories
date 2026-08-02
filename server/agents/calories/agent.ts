@@ -1,7 +1,5 @@
 import { defineAgent, gateway } from "vite-hub/agent";
 import { blob, db, usageCost } from "vite-hub/agent/capabilities";
-import { telegram } from "vite-hub/agent/channels";
-import { renderMarkdownTemplate } from "vite-hub/markdown-template";
 import { useServerEnv } from "#vitehub/env/server";
 
 export default defineAgent({
@@ -11,9 +9,8 @@ export default defineAgent({
     usageCost({ format: "usd" }),
   ],
   channels: {
-    telegram: telegram({
+    telegram: {
       allowedUserIds: () => [useServerEnv().telegram.allowedUserId],
-      botToken: () => useServerEnv().telegram.botToken,
       messages: {
         concurrency: "parallel",
         delivery: "manual",
@@ -22,23 +19,13 @@ export default defineAgent({
         triggerHistory: "none",
         timeout: 40_000,
       },
-      webhookSecret: () => useServerEnv().telegram.webhookSecret,
-    }),
+    },
   },
   driver: {
-    execution: {
-      callSettings: {
-        maxRetries: 0,
-        providerOptions: {
-          gateway: {
-            models: ["google/gemini-3-flash", "openai/gpt-5.4-mini"],
-          },
-        },
-      },
-    },
-    model: gateway("zai/glm-5v-turbo", () => ({
-      apiKey: useServerEnv().vercelAiGatewayToken,
-    })),
+    maxRetries: 0,
+    model: gateway("moonshotai/kimi-k3", {
+      fallbacks: ["google/gemini-3-flash", "openai/gpt-5.4-mini"],
+    }),
   },
   hooks: {
     "agent:input"(context) {
@@ -46,15 +33,9 @@ export default defineAgent({
         context.context.set("dashboardUrl", new URL(context.request.url).origin);
       }
     },
-    async "agent:finish"(event) {
-      const cost =
-        event.extensions.get("usage-cost")?.cost?.formatted ??
-        "Cost unavailable";
-      return event.reply(
-        await renderMarkdownTemplate("{{{ body }}}\n\n{{ cost }}", {
-          data: { body: event.text ?? "", cost },
-        }),
-      );
+    "agent:finish"(event) {
+      const cost = event.invocation.usage?.cost?.formatted ?? "Cost unavailable";
+      return event.reply([event.text, cost].filter(Boolean).join("\n\n"));
     },
   },
 });

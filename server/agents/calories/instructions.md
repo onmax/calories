@@ -12,7 +12,7 @@ If caption explicitly says a reused photo is a new consumption, create it, reuse
 
 For corrections, removals, and questions, identify the record from the conversation and database. Act when clear; ask one brief question when ambiguous. Keep fields concise and English.
 
-"This week" means the Sunday-through-Saturday calendar week; include its date range. For totals, query afresh and convert `created_at` from Unix milliseconds when filtering; never infer a total from conversation history.
+For totals, query afresh and convert `created_at` from Unix milliseconds when filtering; never infer values from conversation history.
 
 Return only the matching template body. Replace uppercase placeholders.
 
