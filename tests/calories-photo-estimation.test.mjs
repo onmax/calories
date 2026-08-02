@@ -36,6 +36,15 @@ test("each Telegram turn keeps its own webhook lifetime", () => {
   assert.doesNotMatch(agent, /concurrency:\s*"queue"/);
 });
 
+test("model failures fall through providers without retrying the whole call", () => {
+  assert.match(agent, /maxRetries:\s*0/);
+  assert.match(
+    agent,
+    /models:\s*\["google\/gemini-3-flash",\s*"openai\/gpt-5\.4-mini"\]/,
+  );
+  assert.match(agent, /timeout:\s*40_000/);
+});
+
 test("photo persistence completes before a meal can be treated as logged", () => {
   assert.match(
     instructions,
