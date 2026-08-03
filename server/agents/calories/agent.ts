@@ -1,5 +1,6 @@
+import { createGateway } from "@ai-sdk/gateway";
 import { defineAgent, gateway } from "vite-hub/agent";
-import { blob, db, usageCost } from "vite-hub/agent/capabilities";
+import { blob, db, transcribe, usageCost } from "vite-hub/agent/capabilities";
 import { useServerEnv } from "#vitehub/env/server";
 
 function errorStatus(error: unknown): number | undefined {
@@ -31,6 +32,11 @@ export default defineAgent({
   capabilities: [
     blob({ mode: "write" }),
     db({ mode: "write" }),
+    transcribe(() => ({
+      model: createGateway({
+        apiKey: useServerEnv().aiGateway.apiKey,
+      }).transcriptionModel("openai/gpt-4o-transcribe"),
+    })),
     usageCost({ format: "usd" }),
   ],
   channels: {

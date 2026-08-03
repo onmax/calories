@@ -22,6 +22,7 @@
     "typecheck": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs typecheck"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "4.0.26",
     "@internationalized/date": "3.12.2",
     "@nuxt/ui": "4.10.0",
     "@vite-hub/database": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@bc2f516f",

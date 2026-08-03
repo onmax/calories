@@ -36,6 +36,18 @@ test("each Telegram turn keeps its own webhook lifetime", () => {
   assert.doesNotMatch(agent, /concurrency:\s*"queue"/);
 });
 
+test("Telegram audio is transcribed before meal analysis", () => {
+  assert.match(agent, /transcribe\(\(\)\s*=>/);
+  assert.match(
+    agent,
+    /transcriptionModel\("openai\/gpt-4o-transcribe"\)/,
+  );
+  assert.match(
+    instructions,
+    /new meal described in text or transcribed audio.*record the meal immediately/is,
+  );
+});
+
 test("model failures fall through providers without retrying the whole call", () => {
   assert.match(agent, /maxRetries:\s*0/);
   assert.match(agent, /gateway\("moonshotai\/kimi-k3"/);
