@@ -466,6 +466,29 @@ img {
   object-fit: cover;
 }
 
+.meal-carousel-fallback {
+  display: grid;
+  min-width: 0;
+  padding: 0.65rem;
+  gap: 0.25rem;
+  text-align: left;
+}
+
+.meal-carousel-fallback small {
+  color: rgb(247 242 232 / 48%);
+  font-size: 0.6rem;
+}
+
+.meal-carousel-fallback strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--cream);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .meal-carousel svg {
   width: 1.2rem;
 }

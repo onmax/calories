@@ -14,22 +14,25 @@ const visibleItems = computed(() => props.meal?.items.slice(0, 6) ?? []);
 const hiddenItemCount = computed(() =>
   Math.max(0, (props.meal?.items.length ?? 0) - visibleItems.value.length),
 );
-const photoMeals = computed(() => props.meals.filter((meal) => getMealPhotoUrl(meal)));
 </script>
 
 <template>
   <aside class="analysis-panel">
     <div v-if="meal" :key="meal.id" class="analysis-scroll">
-      <div v-if="photoMeals.length" class="meal-carousel" aria-label="Meal photos from this day">
+      <div v-if="meals.length" class="meal-carousel" aria-label="Meals from this day">
         <button
-          v-for="dayMeal in photoMeals"
+          v-for="dayMeal in meals"
           :key="dayMeal.id"
           type="button"
           :aria-label="getMealTitle(dayMeal)"
           :aria-pressed="dayMeal.id === selectedId"
           @click="emit('select', dayMeal.id)"
         >
-          <img :src="getMealPhotoUrl(dayMeal)" alt="" />
+          <img v-if="getMealPhotoUrl(dayMeal)" :src="getMealPhotoUrl(dayMeal)" alt="" />
+          <span v-else class="meal-carousel-fallback">
+            <small>{{ formatMealTime(dayMeal.createdAt) }}</small>
+            <strong>{{ getMealTitle(dayMeal) }}</strong>
+          </span>
         </button>
       </div>
 
@@ -87,7 +90,7 @@ const photoMeals = computed(() => props.meals.filter((meal) => getMealPhotoUrl(m
 
     <div v-else class="analysis-empty">
       <UIcon name="i-lucide-image" />
-      <h2>Select a photo</h2>
+      <h2>Select a meal</h2>
     </div>
   </aside>
 </template>

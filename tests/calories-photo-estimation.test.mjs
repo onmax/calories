@@ -10,6 +10,10 @@ const agent = await readFile(
   new URL("../server/agents/calories/agent.ts", import.meta.url),
   "utf8",
 );
+const mealAnalysis = await readFile(
+  new URL("../app/components/MealAnalysis.vue", import.meta.url),
+  "utf8",
+);
 
 test("visible food photos are logged from visual estimates", () => {
   assert.match(
@@ -46,6 +50,13 @@ test("Telegram audio is transcribed before meal analysis", () => {
     instructions,
     /new meal described in text or transcribed audio.*record the meal immediately/is,
   );
+});
+
+test("the dashboard lets every meal be selected without requiring a photo", () => {
+  assert.match(mealAnalysis, /v-for="dayMeal in meals"/);
+  assert.match(mealAnalysis, /v-if="getMealPhotoUrl\(dayMeal\)"/);
+  assert.match(mealAnalysis, /class="meal-carousel-fallback"/);
+  assert.doesNotMatch(mealAnalysis, /const photoMeals/);
 });
 
 test("the primary model stays inside Telegram's background execution window", () => {
