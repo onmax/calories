@@ -179,10 +179,68 @@ index 9cfebd9773fdbbea2d5d46f1f0ecb3fb0e7cb36c..c1f9f9bd8a83abc44042d8e91e62f4b5
  type GatewayModelSettingsResolver<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = MaybeResolvable<GatewayModelSettings, AgentAdapterMetadataContext<TRuntimeConfig>>;
  declare function gateway<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig>(model: string, settings?: GatewayModelSettingsResolver<TRuntimeConfig>): AgentModelResolver<TRuntimeConfig>;
 diff --git a/dist/routes-JvN7Sft5.js b/dist/routes-JvN7Sft5.js
-index a114e3810832cc498f3f626188d6e91c3897efdc..b1a0d5794369fe6a20fa8ebf0c598c0aeeccf106 100644
+index a114e3810832cc498f3f626188d6e91c3897efdc..13beb79be2e04dad62554fa2c59cd993a3c82488 100644
 --- a/dist/routes-JvN7Sft5.js
 +++ b/dist/routes-JvN7Sft5.js
-@@ -1549,7 +1549,22 @@ async function isChatMessageAuthorized(agent, context, registration, thread, mes
+@@ -414,7 +414,7 @@ function objectWithoutUndefined(value) {
+ function fallbackWebhookFromRequest(request) {
+ 	return new URL(request.url).pathname.split("/").filter(Boolean).at(-1) || void 0;
+ }
+-async function collectAgentOutput(result, onProgress) {
++async function collectAgentOutput(result, onProgress, onToolResult) {
+ 	if (result instanceof Response) {
+ 		if (result.headers.get("content-type")?.includes("application/json")) {
+ 			const body = await result.clone().json().catch(() => void 0);
+@@ -440,6 +440,11 @@ async function collectAgentOutput(result, onProgress) {
+ 		}
+ 		const summary = progressSummaryFromEvent(event);
+ 		if (summary) onProgress?.(summary);
++		if (event.type === "tool-result" && !event.error) onToolResult?.({
++			output: event.output,
++			toolCallId: event.id,
++			toolName: event.name
++		});
+ 		if (event.type === "error") throw new Error(event.error);
+ 	}
+ 	return (explicitPhaseSeen ? finalText : unphasedText).trim();
+@@ -1375,7 +1380,7 @@ function accessChatInput(thread, message, messageContext) {
+ 		}
+ 	};
+ }
+-function chatErrorHookArgs(thread, message, input, run, error) {
++function chatErrorHookArgs(thread, message, input, run, error, toolResults) {
+ 	const inputMessage = input?.messages.at(-1);
+ 	const metadata = inputMessage?.metadata && typeof inputMessage.metadata === "object" ? inputMessage.metadata : void 0;
+ 	return {
+@@ -1387,6 +1392,7 @@ function chatErrorHookArgs(thread, message, input, run, error) {
+ 			text: message.text
+ 		},
+ 		run,
++		toolResults: [...toolResults],
+ 		thread: { post: async (postedMessage) => postChatMessage(thread, postedMessage) }
+ 	};
+ }
+@@ -1476,7 +1482,7 @@ async function resolveChatErrorFallbackText(options, args) {
+ 	if (publicError.code === "RATE_LIMIT_REJECTED") return publicError.error;
+ 	return defaultChatErrorFallbackText;
+ }
+-async function postChatErrorFallback(error, thread, message, options, input, run, manualDeliveryPlaceholder) {
++async function postChatErrorFallback(error, thread, message, options, input, run, toolResults, manualDeliveryPlaceholder) {
+ 	console.error({
+ 		component: "@vite-hub/agent",
+ 		error: serializeErrorForLog(error),
+@@ -1484,7 +1490,7 @@ async function postChatErrorFallback(error, thread, message, options, input, run
+ 		message_id: message.id,
+ 		thread_id: message.threadId
+ 	});
+-	const fallback = await resolveChatErrorFallbackText(options, chatErrorHookArgs(thread, message, input, run, error));
++	const fallback = await resolveChatErrorFallbackText(options, chatErrorHookArgs(thread, message, input, run, error, toolResults));
+ 	if (!fallback) {
+ 		if (manualDeliveryPlaceholder) await deleteManualDeliveryPlaceholder(manualDeliveryPlaceholder);
+ 		return;
+@@ -1547,9 +1553,24 @@ async function isChatMessageAuthorized(agent, context, registration, thread, mes
+ 	}
+ 	return invoker;
  }
 -const cloudflareChatBackgroundTimeoutMs = 25e3;
 +const cloudflareChatBackgroundTimeoutMs = 28e3;
@@ -207,15 +265,32 @@ index a114e3810832cc498f3f626188d6e91c3897efdc..b1a0d5794369fe6a20fa8ebf0c598c0a
  }
  async function handleChatSdkMessage(agent, context, registration, thread, message, deliveryKind, options, state, messageContext, maximumInvocationTimeout) {
  	let input;
-@@ -1611,7 +1626,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+@@ -1557,6 +1578,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 	let typing;
+ 	let progress;
+ 	const manualDeliveryState = {};
++	const toolResults = [];
+ 	try {
+ 		input = createChatTriggerInput(chatRegistrationOrigin(registration), thread, message, [chatAuthorizationUiMessage(thread, message, messageContext)], messageContext, registration.channelId);
+ 		if (typeof options?.timeout === "number" && Number.isFinite(options.timeout) && options.timeout > 0) input.timeout = options.timeout;
+@@ -1611,7 +1633,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
  			}
  		}, invoker), chatFinish);
  		if (!streamsPhasedReplies) {
 -			const text = await collectAgentOutput(manualDelivery ? await streamAgent(agent, runContext, invocationInput, { output: "events" }) : await runAgentInline(agent, runContext, invocationInput), progress?.update);
-+			const text = await enforceChatInvocationTimeout(collectAgentOutput(manualDelivery ? await streamAgent(agent, runContext, invocationInput, { output: "events" }) : await runAgentInline(agent, runContext, invocationInput), progress?.update), maximumInvocationTimeout === void 0 ? void 0 : invocationInput.timeout);
++			const text = await enforceChatInvocationTimeout(collectAgentOutput(manualDelivery ? await streamAgent(agent, runContext, invocationInput, { output: "events" }) : await runAgentInline(agent, runContext, invocationInput), progress?.update, (toolResult) => toolResults.push(toolResult)), maximumInvocationTimeout === void 0 ? void 0 : invocationInput.timeout);
  			if (!manualDelivery && text) {
  				if (!await postDiscordSplitContent(thread, { markdown: text })) await thread.post({ markdown: text });
  			}
+@@ -1654,7 +1676,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 	} catch (error) {
+ 		typing?.stop();
+ 		await progress?.finish();
+-		await postChatErrorFallback(error, thread, message, options, input, run, manualDeliveryState.placeholder);
++		await postChatErrorFallback(error, thread, message, options, input, run, toolResults, manualDeliveryState.placeholder);
+ 		throw error;
+ 	} finally {
+ 		typing?.stop();
 diff --git a/dist/src-CQPEDpFA.js b/dist/src-CQPEDpFA.js
 index cbfb2353964c76f4129d5345ceb0fd51a60bfb62..ff2f22fc24852d38e081c6f245e0f8c6cd592c5b 100644
 --- a/dist/src-CQPEDpFA.js
@@ -284,7 +359,7 @@ index cbfb2353964c76f4129d5345ceb0fd51a60bfb62..ff2f22fc24852d38e081c6f245e0f8c6
  		channels ||= { ...inputs };
  		channels[id] = channel;
 diff --git a/dist/types-DSKkoiBv.d.ts b/dist/types-DSKkoiBv.d.ts
-index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..a5ab3fac8c8afd6e4291dc2bcfa1036630f6e01b 100644
+index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..5444c8d0b5134e52bdfc1885277d445c8045f752 100644
 --- a/dist/types-DSKkoiBv.d.ts
 +++ b/dist/types-DSKkoiBv.d.ts
 @@ -5,6 +5,7 @@ import { Box, BoxDefinition, BoxRequirement } from "@vite-hub/box";
@@ -303,7 +378,15 @@ index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..a5ab3fac8c8afd6e4291dc2bcfa10366
    model: AgentModelResolver<TRuntimeConfig>;
    output?: AgentOutputDefinition<TOutput>;
    permissionMode?: never;
-@@ -1251,7 +1253,16 @@ interface AgentChannelDefinition<TRuntimeConfig extends AgentRuntimeConfig = Age
+@@ -1153,6 +1155,7 @@ interface AgentChatAgentHookArgs<TRuntimeConfig extends AgentRuntimeConfig = Age
+ }
+ interface AgentChatErrorHookArgs<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> extends AgentChatAgentHookArgs<TRuntimeConfig> {
+   error: unknown;
++  toolResults: AgentToolStepItem[];
+ }
+ interface AgentChatEventHookArgs<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> extends Record<string, unknown> {}
+ interface AgentChatEventHooks<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> extends Record<string, unknown> {
+@@ -1251,7 +1254,16 @@ interface AgentChannelDefinition<TRuntimeConfig extends AgentRuntimeConfig = Age
  }
  type AgentChannelFactory<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = () => AgentChannelDefinition<TRuntimeConfig>;
  type AgentChannelInput<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = AgentChannelDefinition<TRuntimeConfig> | AgentChannelFactory<TRuntimeConfig>;
@@ -321,7 +404,7 @@ index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..a5ab3fac8c8afd6e4291dc2bcfa10366
  type AgentChannels<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> = Record<string, AgentChannelDefinition<TRuntimeConfig>>;
  interface AgentChatBaseOptions<TRuntimeConfig extends AgentRuntimeConfig = AgentRuntimeConfig> extends AgentMessageChannelSettings<TRuntimeConfig> {
    adapters?: never;
-@@ -1394,6 +1405,7 @@ interface AgentUsageCost {
+@@ -1394,6 +1406,7 @@ interface AgentUsageCost {
    amount: string;
    currency: "USD" | (string & {});
    estimated: boolean;

@@ -47,7 +47,10 @@ export default defineAgent({
       messages: {
         concurrency: "parallel",
         delivery: "manual",
-        errorFallbackText: ({ error }) => {
+        errorFallbackText: ({ error, toolResults }) => {
+          if (toolResults.some(result => result.toolName === "db_exec")) {
+            return "Saved successfully, but I couldn’t send the full analysis. It’s already in your dashboard.";
+          }
           const status = errorStatus(error);
           return status !== undefined && status >= 500 && status < 600
             ? "AI is temporarily unavailable. Try again in a minute, unless the meal is already in your dashboard."

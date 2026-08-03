@@ -70,6 +70,8 @@ test("the primary model stays inside Telegram's background execution window", ()
 });
 
 test("server failures explain how to retry without duplicating a saved meal", () => {
+  assert.match(agent, /toolResults\.some\(result => result\.toolName === "db_exec"\)/);
+  assert.match(agent, /Saved successfully.*already in your dashboard/is);
   assert.match(agent, /status\s*>=\s*500\s*&&\s*status\s*<\s*600/);
   assert.match(agent, /AI is temporarily unavailable/);
   assert.match(agent, /unless the meal is already in your dashboard/is);
