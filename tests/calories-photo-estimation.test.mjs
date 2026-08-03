@@ -48,7 +48,7 @@ test("Telegram audio is transcribed before meal analysis", () => {
   );
   assert.match(
     instructions,
-    /new meal described in text or transcribed audio.*record the meal immediately/is,
+    /new meal described in text or transcribed audio.*return an `upsert`/is,
   );
 });
 
@@ -69,18 +69,33 @@ test("the primary model stays inside Telegram's background execution window", ()
   assert.match(agent, /timeout:\s*28_000/);
 });
 
-test("server failures explain how to retry without duplicating a saved meal", () => {
-  assert.match(agent, /toolResults\.some\(result => result\.toolName === "db_exec"\)/);
-  assert.match(agent, /Saved successfully.*already in your dashboard/is);
+test("structured output separates replies from meal mutations", () => {
+  assert.match(agent, /z\.discriminatedUnion\("type"/);
+  assert.match(agent, /type:\s*z\.literal\("reply"\)/);
+  assert.match(agent, /type:\s*z\.literal\("upsert"\)/);
+  assert.match(agent, /output:\s*\{ schema: caloriesOutputSchema \}/);
+  assert.match(agent, /db\(\{ mode: "read" \}\)/);
+  assert.doesNotMatch(agent, /db\(\{ mode: "write" \}\)/);
+});
+
+test("meal mutations persist before their success response is delivered", () => {
+  assert.match(agent, /if \(output\.type === "upsert"\)/);
+  assert.match(agent, /await database\.insert\(meals\).*onConflictDoUpdate/is);
+  assert.match(agent, /onConflictDoUpdate\(\{[\s\S]*target: meals\.id/);
+  assert.match(agent, /return event\.reply\(\[output\.text, cost\]/);
+  assert.doesNotMatch(agent, /toolResults\.some/);
+});
+
+test("server failures only claim what was actually persisted", () => {
   assert.match(agent, /status\s*>=\s*500\s*&&\s*status\s*<\s*600/);
   assert.match(agent, /AI is temporarily unavailable/);
-  assert.match(agent, /unless the meal is already in your dashboard/is);
+  assert.doesNotMatch(agent, /already in your dashboard/is);
 });
 
 test("photo persistence completes before a meal can be treated as logged", () => {
   assert.match(
     instructions,
-    /new photo meal.*upload.*current input attachment.*before inserting/is,
+    /new photo meal.*upload.*current input attachment.*before returning the `upsert`/is,
   );
   assert.match(
     instructions,
@@ -88,7 +103,7 @@ test("photo persistence completes before a meal can be treated as logged", () =>
   );
   assert.match(
     instructions,
-    /incomplete.*repair.*current attachment.*without adding.*calories again/is,
+    /incomplete.*repair.*current attachment.*returning an `upsert`.*without adding.*calories again/is,
   );
 });
 

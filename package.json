@@ -32,7 +32,8 @@
     "ofetch": "2.0.0-alpha.3",
     "tailwindcss": "4.3.3",
     "vite-hub": "https://pkg.pr.new/vite-hub/vitehub/vite-hub@bc2f516f",
-    "vue-router": "5.2.0"
+    "vue-router": "5.2.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260724.1",
