@@ -48,12 +48,12 @@ test("Telegram audio is transcribed before meal analysis", () => {
   );
 });
 
-test("model failures fall through providers without retrying the whole call", () => {
+test("the primary model stays inside Telegram's background execution window", () => {
   assert.match(agent, /maxRetries:\s*0/);
-  assert.match(agent, /gateway\("moonshotai\/kimi-k3"/);
+  assert.match(agent, /gateway\("google\/gemini-3-flash"/);
   assert.match(
     agent,
-    /fallbacks:\s*\["google\/gemini-3-flash",\s*"openai\/gpt-5\.4-mini"\]/,
+    /fallbacks:\s*\["openai\/gpt-5\.4-mini",\s*"moonshotai\/kimi-k3"\]/,
   );
   assert.match(agent, /timeout:\s*25_000/);
 });

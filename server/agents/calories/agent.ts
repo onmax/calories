@@ -61,9 +61,9 @@ export default defineAgent({
   },
   driver: {
     maxRetries: 0,
-    model: gateway("moonshotai/kimi-k3", () => ({
+    model: gateway("google/gemini-3-flash", () => ({
       apiKey: useServerEnv().aiGateway.apiKey,
-      fallbacks: ["google/gemini-3-flash", "openai/gpt-5.4-mini"],
+      fallbacks: ["openai/gpt-5.4-mini", "moonshotai/kimi-k3"],
     })),
   },
   hooks: {
