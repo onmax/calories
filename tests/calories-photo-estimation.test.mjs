@@ -55,7 +55,7 @@ test("the primary model stays inside Telegram's background execution window", ()
     agent,
     /fallbacks:\s*\["openai\/gpt-5\.4-mini",\s*"moonshotai\/kimi-k3"\]/,
   );
-  assert.match(agent, /timeout:\s*25_000/);
+  assert.match(agent, /timeout:\s*28_000/);
 });
 
 test("server failures explain how to retry without duplicating a saved meal", () => {

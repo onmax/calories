@@ -55,7 +55,7 @@ export default defineAgent({
         },
         fallbackStreamingPlaceholderText: "Thinking…",
         triggerHistory: "none",
-        timeout: 25_000,
+        timeout: 28_000,
       },
     },
   },

@@ -184,7 +184,8 @@ index a114e3810832cc498f3f626188d6e91c3897efdc..b1a0d5794369fe6a20fa8ebf0c598c0a
 +++ b/dist/routes-JvN7Sft5.js
 @@ -1549,7 +1549,22 @@ async function isChatMessageAuthorized(agent, context, registration, thread, mes
  }
- const cloudflareChatBackgroundTimeoutMs = 25e3;
+-const cloudflareChatBackgroundTimeoutMs = 25e3;
++const cloudflareChatBackgroundTimeoutMs = 28e3;
  function chatInvocationTimeout(timeout, maximum) {
 -	return timeout === void 0 || maximum === void 0 ? timeout : Math.min(timeout, maximum);
 +	if (maximum === void 0) return timeout;
