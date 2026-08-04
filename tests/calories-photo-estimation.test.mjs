@@ -71,8 +71,8 @@ test("the primary model stays inside Telegram's background execution window", ()
 });
 
 test("the presentation tool separates replies from meal mutations", () => {
-  assert.match(agent, /name:\s*"present_meal"/);
-  assert.match(agent, /inputSchema:\s*mealPresentationSchema/);
+  assert.match(agent, /present_meal:\s*\{/);
+  assert.match(agent, /inputSchema:\s*toJsonSchema\(mealPresentationSchema\)/);
   assert.match(instructions, /reply without a tool call/is);
   assert.doesNotMatch(agent, /output:\s*\{ schema:/);
   assert.match(agent, /db\(\{ mode: "read" \}\)/);
@@ -92,13 +92,22 @@ test("the agent resolves natural-language timestamps and the tool owns meal link
   assert.match(agent, /context\.context\.set\("messageSentAt", currentMessage\.createdAt\)/);
   assert.match(agent, /context\.context\.set\("journalTimezone", "Europe\/Copenhagen"\)/);
   assert.match(instructions, /message was sent at.*context\.messageSentAt/is);
-  assert.match(instructions, /interpret.*natural-language meal time.*context\.journalTimezone/is);
-  assert.match(instructions, /when the user gives no meal time, use the message timestamp/is);
-  assert.match(agent, /createdAt:\s*new Date\(proposal\.data\.meal\.createdAt\)/);
+  assert.match(instructions, /resolve that time.*context\.journalTimezone/is);
+  assert.match(instructions, /set `createdAt` only when the user states or implies a different meal time/is);
+  assert.match(instructions, /otherwise omit `createdAt`; the tool uses the message timestamp/is);
+  assert.match(agent, /createdAt:\s*v\.optional\(v\.pipe\(v\.string\(\), v\.isoTimestamp\(\)\)\)/);
+  assert.match(agent, /proposal\.output\.meal\.createdAt[\s\S]*messageSentAt[\s\S]*Date\.now\(\)/);
   assert.doesNotMatch(agent, /resolveMealCreatedAt/);
   assert.match(agent, /dashboardUrl.*values\.id/s);
   assert.doesNotMatch(agent, /text:\s*z\.string\(\)\.min\(1\)/);
   assert.doesNotMatch(instructions, /put the rendered user-facing template in `text`/i);
+});
+
+test("the meal tool has an execution-ready title and timestamp description", () => {
+  assert.match(agent, /name:\s*"Present meal"/);
+  assert.match(agent, /description:.*include createdAt only when.*different from the current Telegram message/is);
+  assert.match(agent, /import \* as v from "valibot"/);
+  assert.match(agent, /import \{ toJsonSchema \} from "@valibot\/to-json-schema"/);
 });
 
 test("Telegram identity is parsed from the adapter's composite message ID", () => {

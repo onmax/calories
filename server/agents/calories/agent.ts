@@ -1,26 +1,27 @@
 import { createGateway } from "@ai-sdk/gateway";
+import { toJsonSchema } from "@valibot/to-json-schema";
 import { defineAgent, defineCapability, gateway } from "vite-hub/agent";
 import { blob, db, transcribe, usageCost } from "vite-hub/agent/capabilities";
 import { useServerEnv } from "#vitehub/env/server";
 import { and, gte, lt } from "drizzle-orm";
-import { z } from "zod";
+import * as v from "valibot";
 import database, { meals } from "../../databases/config";
 
-const mealDraftSchema = z.object({
-  caption: z.string().nullable(),
-  confidence: z.enum(["low", "medium", "high"]).nullable(),
-  createdAt: z.iso.datetime(),
-  id: z.string().min(1),
-  items: z.array(z.object({
-    calories: z.number().int().nonnegative(),
-    name: z.string().min(1),
-    portion: z.string().min(1),
+const mealDraftSchema = v.object({
+  caption: v.nullable(v.string()),
+  confidence: v.nullable(v.picklist(["low", "medium", "high"])),
+  createdAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
+  id: v.pipe(v.string(), v.minLength(1)),
+  items: v.array(v.object({
+    calories: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    name: v.pipe(v.string(), v.minLength(1)),
+    portion: v.pipe(v.string(), v.minLength(1)),
   })),
-  photoPath: z.string().nullable(),
-  totalCalories: z.number().int().nonnegative(),
+  photoPath: v.nullable(v.string()),
+  totalCalories: v.pipe(v.number(), v.integer(), v.minValue(0)),
 });
 
-const mealPresentationSchema = z.object({
+const mealPresentationSchema = v.object({
   meal: mealDraftSchema,
 });
 
@@ -59,7 +60,7 @@ function rejectedPresentation(reason: string): MealPresentationResult {
   };
 }
 
-function mealPresentationText(meal: Omit<z.infer<typeof mealDraftSchema>, "createdAt">, todayTotal: number, dashboardUrl: string): string {
+function mealPresentationText(meal: Omit<v.InferOutput<typeof mealDraftSchema>, "createdAt">, todayTotal: number, dashboardUrl: string): string {
   const items = meal.items
     .map(item => `- ${item.name}: ${item.portion}, ${item.calories} kcal`)
     .join("\n");
@@ -76,14 +77,14 @@ const mealPresentation = defineCapability({
   configure(context) {
     context.tools.add({
       present_meal: {
-        name: "present_meal",
-        description: "Present one complete meal for validation and persistence. The tool approves or rejects it and is the only way to claim that a meal was saved.",
-        inputSchema: mealPresentationSchema,
+        name: "Present meal",
+        description: "Validate and save one complete meal. Include createdAt only when the user stated or implied a meal time different from the current Telegram message; otherwise omit it and the tool uses the message timestamp.",
+        inputSchema: toJsonSchema(mealPresentationSchema),
         async execute(input) {
           const previous = context.context.get<MealPresentationResult>("meal-presentation.result");
           if (previous?.approved) return previous;
 
-          const proposal = mealPresentationSchema.safeParse(input);
+          const proposal = v.safeParse(mealPresentationSchema, input);
           if (!proposal.success) {
             const result = rejectedPresentation("The proposed meal was incomplete.");
             context.context.set("meal-presentation.result", result);
@@ -97,17 +98,21 @@ const mealPresentation = defineCapability({
             return result;
           }
 
-          const itemCalories = proposal.data.meal.items.reduce((sum, item) => sum + item.calories, 0);
-          if (itemCalories !== proposal.data.meal.totalCalories) {
+          const itemCalories = proposal.output.meal.items.reduce((sum, item) => sum + item.calories, 0);
+          if (itemCalories !== proposal.output.meal.totalCalories) {
             const result = rejectedPresentation("The item calories did not equal the meal total.");
             context.context.set("meal-presentation.result", result);
             return result;
           }
 
           const values = {
-            ...proposal.data.meal,
+            ...proposal.output.meal,
             ...identity,
-            createdAt: new Date(proposal.data.meal.createdAt),
+            createdAt: new Date(
+              proposal.output.meal.createdAt
+              ?? context.context.get<string>("messageSentAt")
+              ?? Date.now(),
+            ),
             telegramPhotoUniqueId: context.context.get<string>("meal-presentation.photoUniqueId") ?? null,
           };
           const dashboardUrl = context.context.get<string>("dashboardUrl");
