@@ -2,8 +2,10 @@ import { createGateway } from "@ai-sdk/gateway";
 import { defineAgent, defineCapability, gateway } from "vite-hub/agent";
 import { blob, db, transcribe, usageCost } from "vite-hub/agent/capabilities";
 import { useServerEnv } from "#vitehub/env/server";
+import { and, gte, lt } from "drizzle-orm";
 import { z } from "zod";
 import database, { meals } from "../../databases/config";
+import { resolveMealCreatedAt } from "./time";
 
 const mealDraftSchema = z.object({
   caption: z.string().nullable(),
@@ -21,7 +23,6 @@ const mealDraftSchema = z.object({
 
 const mealPresentationSchema = z.object({
   meal: mealDraftSchema,
-  text: z.string().min(1),
 });
 
 type MealPresentationResult = {
@@ -57,6 +58,18 @@ function rejectedPresentation(reason: string): MealPresentationResult {
     reason,
     text: "I couldn’t verify and save that meal. Please resend it.",
   };
+}
+
+function mealPresentationText(meal: Omit<z.infer<typeof mealDraftSchema>, "createdAt">, todayTotal: number, dashboardUrl: string): string {
+  const items = meal.items
+    .map(item => `- ${item.name}: ${item.portion}, ${item.calories} kcal`)
+    .join("\n");
+  return [
+    `Logged **${meal.totalCalories} kcal**`,
+    items,
+    `Today: **${todayTotal} kcal**`,
+    `Dashboard: ${dashboardUrl}?meal=${encodeURIComponent(meal.id)}`,
+  ].join("\n\n");
 }
 
 const mealPresentation = defineCapability({
@@ -95,9 +108,19 @@ const mealPresentation = defineCapability({
           const values = {
             ...proposal.data.meal,
             ...identity,
-            createdAt: new Date(proposal.data.meal.createdAt),
+            createdAt: resolveMealCreatedAt(
+              proposal.data.meal.createdAt,
+              context.context.get<string>("meal-presentation.sourceText"),
+              context.context.get<string>("meal-presentation.messageSentAt"),
+            ),
             telegramPhotoUniqueId: context.context.get<string>("meal-presentation.photoUniqueId") ?? null,
           };
+          const dashboardUrl = context.context.get<string>("dashboardUrl");
+          if (!dashboardUrl) {
+            const result = rejectedPresentation("The dashboard URL could not be verified.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
 
           try {
             await database.insert(meals).values(values).onConflictDoUpdate({
@@ -122,10 +145,20 @@ const mealPresentation = defineCapability({
             return result;
           }
 
+          const dayStart = new Date(values.createdAt);
+          dayStart.setUTCHours(0, 0, 0, 0);
+          const dayEnd = new Date(dayStart);
+          dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+          const dayMeals = await database
+            .select({ totalCalories: meals.totalCalories })
+            .from(meals)
+            .where(and(gte(meals.createdAt, dayStart), lt(meals.createdAt, dayEnd)));
+          const todayTotal = dayMeals.reduce((sum, meal) => sum + (meal.totalCalories ?? 0), 0);
+
           const result: MealPresentationResult = {
             approved: true,
             mealId: values.id,
-            text: proposal.data.text,
+            text: mealPresentationText(values, todayTotal, dashboardUrl),
           };
           context.context.set("meal-presentation.result", result);
           return result;
@@ -179,7 +212,7 @@ export default defineAgent({
       botToken: () => useServerEnv().telegram.botToken,
       webhookSecret: () => useServerEnv().telegram.webhookSecret || false,
       messages: {
-        concurrency: "parallel",
+        concurrency: "queue",
         delivery: "manual",
         errorFallbackText: ({ error }) => {
           const status = errorStatus(error);
@@ -188,6 +221,7 @@ export default defineAgent({
             : "I couldn’t handle that. Please try again.";
         },
         fallbackStreamingPlaceholderText: "Thinking…",
+        lockScope: "channel",
         triggerHistory: "none",
         timeout: 28_000,
       },
@@ -206,6 +240,14 @@ export default defineAgent({
         context.context.set("dashboardUrl", new URL(context.request.url).origin);
       }
       const currentMessage = context.input.messages?.at(-1);
+      const sourceText = currentMessage?.parts
+        .filter(part => part.type === "text")
+        .map(part => part.text)
+        .join("\n");
+      if (sourceText) context.context.set("meal-presentation.sourceText", sourceText);
+      if (currentMessage?.createdAt) {
+        context.context.set("meal-presentation.messageSentAt", currentMessage.createdAt);
+      }
       const image = currentMessage?.parts.find(part => part.type === "image");
       if (image?.fetchMetadata?.fileId) {
         context.context.set("meal-presentation.photoUniqueId", image.fetchMetadata.fileId);

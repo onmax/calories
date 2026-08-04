@@ -412,3 +412,20 @@ index d1bf55a62695d870bb9cd8e4a55c742a7e23fe14..5444c8d0b5134e52bdfc1885277d445c
    source: "custom" | "estimated" | "provider" | "vercel-ai-gateway" | (string & {});
  }
  interface AgentUsageCredentialSource {
+diff --git a/dist/routes-JvN7Sft5.js b/dist/routes-JvN7Sft5.js
+index c9b4a69..9dfe8f1 100644
+--- a/dist/routes-JvN7Sft5.js
++++ b/dist/routes-JvN7Sft5.js
+@@ -1693 +1693,5 @@
+-	chat.onDirectMessage((thread, message, _channel, messageContext) => handleChatSdkMessage(agent, context, registration, thread, message, "direct", options, state, messageContext, maximumInvocationTimeout));
++	const handleQueuedMessages = async (thread, message, messageContext, deliveryKind) => {
++		const queuedMessages = [...messageContext?.skipped ?? [], message];
++		for (const queuedMessage of queuedMessages) await handleChatSdkMessage(agent, context, registration, thread, queuedMessage, deliveryKind(queuedMessage), options, state, void 0, maximumInvocationTimeout);
++	};
++	chat.onDirectMessage((thread, message, _channel, messageContext) => handleQueuedMessages(thread, message, messageContext, () => "direct"));
+@@ -1696 +1700 @@
+-		await handleChatSdkMessage(agent, context, registration, thread, message, "mention", options, state, messageContext, maximumInvocationTimeout);
++		await handleQueuedMessages(thread, message, messageContext, () => "mention");
+@@ -1698 +1702 @@
+-	chat.onSubscribedMessage((thread, message, messageContext) => handleChatSdkMessage(agent, context, registration, thread, message, message.isMention ? "mention" : "subscribed", options, state, messageContext, maximumInvocationTimeout));
++	chat.onSubscribedMessage((thread, message, messageContext) => handleQueuedMessages(thread, message, messageContext, (queuedMessage) => queuedMessage.isMention ? "mention" : "subscribed"));

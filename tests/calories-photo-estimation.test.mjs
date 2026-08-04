@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { resolveMealCreatedAt } from "../server/agents/calories/time.ts";
 
 const instructions = await readFile(
   new URL("../server/agents/calories/instructions.md", import.meta.url),
@@ -35,9 +36,10 @@ test("each photo analysis is isolated from prior meals", () => {
   assert.doesNotMatch(agent, /triggerHistory:\s*\{/);
 });
 
-test("each Telegram turn keeps its own webhook lifetime", () => {
-  assert.match(agent, /concurrency:\s*"parallel"/);
-  assert.doesNotMatch(agent, /concurrency:\s*"queue"/);
+test("Telegram turns wait behind the active turn", () => {
+  assert.match(agent, /concurrency:\s*"queue"/);
+  assert.match(agent, /lockScope:\s*"channel"/);
+  assert.doesNotMatch(agent, /concurrency:\s*"parallel"/);
 });
 
 test("Telegram audio is transcribed before meal analysis", () => {
@@ -85,6 +87,24 @@ test("the tool approves meal mutations only after persistence", () => {
   assert.match(agent, /approved:\s*true/);
   assert.match(agent, /presentation\?\.approved.*event\.reply\(presentation\.text\)/s);
   assert.match(instructions, /saved only when the tool returns `approved: true`/is);
+});
+
+test("the presentation tool owns relative timestamps and meal links", () => {
+  assert.match(agent, /resolveMealCreatedAt\(/);
+  assert.match(agent, /dashboardUrl.*values\.id/s);
+  assert.doesNotMatch(agent, /text:\s*z\.string\(\)\.min\(1\)/);
+  assert.doesNotMatch(instructions, /put the rendered user-facing template in `text`/i);
+});
+
+test("last night is resolved from the Telegram message date", () => {
+  assert.equal(
+    resolveMealCreatedAt(
+      "2025-05-13T18:50:00.000Z",
+      "last night at 18:50 i had black beans and rice",
+      "2026-08-04T14:06:00.000Z",
+    ).toISOString(),
+    "2026-08-03T18:50:00.000Z",
+  );
 });
 
 test("Telegram identity is parsed from the adapter's composite message ID", () => {
