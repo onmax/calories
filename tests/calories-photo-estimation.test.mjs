@@ -81,6 +81,7 @@ test("the presentation tool separates replies from meal mutations", () => {
 test("the tool approves meal mutations only after persistence", () => {
   assert.match(agent, /await database\.insert\(meals\).*onConflictDoUpdate/is);
   assert.match(agent, /onConflictDoUpdate\(\{[\s\S]*target: meals\.id/);
+  assert.match(agent, /if \(previous\?\.approved\) return previous/);
   assert.match(agent, /approved:\s*true/);
   assert.match(agent, /presentation\?\.approved.*event\.reply\(presentation\.text\)/s);
   assert.match(instructions, /saved only when the tool returns `approved: true`/is);

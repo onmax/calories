@@ -69,7 +69,7 @@ const mealPresentation = defineCapability({
         inputSchema: mealPresentationSchema,
         async execute(input) {
           const previous = context.context.get<MealPresentationResult>("meal-presentation.result");
-          if (previous) return previous;
+          if (previous?.approved) return previous;
 
           const proposal = mealPresentationSchema.safeParse(input);
           if (!proposal.success) {
