@@ -1,5 +1,5 @@
 import { createGateway } from "@ai-sdk/gateway";
-import { defineAgent, gateway } from "vite-hub/agent";
+import { defineAgent, defineCapability, gateway } from "vite-hub/agent";
 import { blob, db, transcribe, usageCost } from "vite-hub/agent/capabilities";
 import { useServerEnv } from "#vitehub/env/server";
 import { z } from "zod";
@@ -19,19 +19,122 @@ const mealDraftSchema = z.object({
   totalCalories: z.number().int().nonnegative(),
 });
 
-const caloriesOutputSchema = z.discriminatedUnion("type", [
-  z.object({
-    text: z.string().min(1),
-    type: z.literal("reply"),
-  }),
-  z.object({
-    meal: mealDraftSchema,
-    text: z.string().min(1),
-    type: z.literal("upsert"),
-  }),
-]);
+const mealPresentationSchema = z.object({
+  meal: mealDraftSchema,
+  text: z.string().min(1),
+});
 
-type CaloriesOutput = z.infer<typeof caloriesOutputSchema>;
+type MealPresentationResult = {
+  approved: boolean;
+  mealId?: string;
+  reason?: string;
+  text: string;
+};
+
+declare global {
+  interface ViteHubAgentFinishExtensions {
+    "meal-presentation": MealPresentationResult | undefined;
+  }
+}
+
+function telegramIdentity(run: { messageId?: string; threadId?: string } | undefined) {
+  const telegramChatId = run?.threadId?.match(/^telegram:(.+)$/)?.[1];
+  const compositeMessageId = run?.messageId;
+  const separator = compositeMessageId?.lastIndexOf(":") ?? -1;
+  const messageChatId = separator > 0 ? compositeMessageId?.slice(0, separator) : undefined;
+  const telegramMessageId = Number(compositeMessageId?.slice(separator + 1));
+
+  if (!telegramChatId || messageChatId !== telegramChatId || !Number.isSafeInteger(telegramMessageId)) {
+    return;
+  }
+
+  return { telegramChatId, telegramMessageId };
+}
+
+function rejectedPresentation(reason: string): MealPresentationResult {
+  return {
+    approved: false,
+    reason,
+    text: "I couldn’t verify and save that meal. Please resend it.",
+  };
+}
+
+const mealPresentation = defineCapability({
+  id: "meal-presentation",
+  configure(context) {
+    context.tools.add({
+      present_meal: {
+        name: "present_meal",
+        description: "Present one complete meal for validation and persistence. The tool approves or rejects it and is the only way to claim that a meal was saved.",
+        inputSchema: mealPresentationSchema,
+        async execute(input) {
+          const previous = context.context.get<MealPresentationResult>("meal-presentation.result");
+          if (previous) return previous;
+
+          const proposal = mealPresentationSchema.safeParse(input);
+          if (!proposal.success) {
+            const result = rejectedPresentation("The proposed meal was incomplete.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
+
+          const identity = telegramIdentity(context.run);
+          if (!identity) {
+            const result = rejectedPresentation("The Telegram chat and message identity could not be verified.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
+
+          const itemCalories = proposal.data.meal.items.reduce((sum, item) => sum + item.calories, 0);
+          if (itemCalories !== proposal.data.meal.totalCalories) {
+            const result = rejectedPresentation("The item calories did not equal the meal total.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
+
+          const values = {
+            ...proposal.data.meal,
+            ...identity,
+            createdAt: new Date(proposal.data.meal.createdAt),
+            telegramPhotoUniqueId: context.context.get<string>("meal-presentation.photoUniqueId") ?? null,
+          };
+
+          try {
+            await database.insert(meals).values(values).onConflictDoUpdate({
+              set: {
+                caption: values.caption,
+                confidence: values.confidence,
+                createdAt: values.createdAt,
+                items: values.items,
+                photoPath: values.photoPath,
+                telegramChatId: values.telegramChatId,
+                telegramMessageId: values.telegramMessageId,
+                telegramPhotoUniqueId: values.telegramPhotoUniqueId,
+                totalCalories: values.totalCalories,
+              },
+              target: meals.id,
+            });
+          }
+          catch (error) {
+            console.error("[calories] Meal presentation rejected during persistence", error);
+            const result = rejectedPresentation("The database rejected the proposed meal.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
+
+          const result: MealPresentationResult = {
+            approved: true,
+            mealId: values.id,
+            text: proposal.data.text,
+          };
+          context.context.set("meal-presentation.result", result);
+          return result;
+        },
+      },
+    });
+    context.finish.provide(() => context.context.get<MealPresentationResult>("meal-presentation.result"));
+  },
+});
 
 function errorStatus(error: unknown): number | undefined {
   const seen = new Set<object>();
@@ -62,6 +165,7 @@ export default defineAgent({
   capabilities: [
     blob({ mode: "write" }),
     db({ mode: "read" }),
+    mealPresentation,
     transcribe(() => ({
       model: createGateway({
         apiKey: useServerEnv().aiGateway.apiKey,
@@ -95,51 +199,27 @@ export default defineAgent({
       apiKey: useServerEnv().aiGateway.apiKey,
       fallbacks: ["openai/gpt-5.4-mini", "moonshotai/kimi-k3"],
     })),
-    output: { schema: caloriesOutputSchema },
   },
   hooks: {
     "agent:input"(context) {
       if (context.request) {
         context.context.set("dashboardUrl", new URL(context.request.url).origin);
       }
-    },
-    async "agent:finish"(event) {
-      const output = event.result as CaloriesOutput;
-      if (output.type === "upsert") {
-        const run = event.invocation.run;
-        const telegramChatId = run?.threadId?.replace(/^telegram:/, "");
-        const telegramMessageId = Number(run?.messageId);
-        if (!telegramChatId || !Number.isSafeInteger(telegramMessageId)) {
-          throw new Error("A Telegram meal upsert requires its chat and message identity.");
-        }
-
-        const currentMessage = event.input.messages?.at(-1);
-        const image = currentMessage?.parts.find(part => part.type === "image");
-        const telegramPhotoUniqueId = image?.fetchMetadata?.fileId ?? null;
-        const createdAt = new Date(output.meal.createdAt);
-        const values = {
-          ...output.meal,
-          createdAt,
-          telegramChatId,
-          telegramMessageId,
-          telegramPhotoUniqueId,
-        };
-
-        await database.insert(meals).values(values).onConflictDoUpdate({
-          set: {
-            caption: values.caption,
-            confidence: values.confidence,
-            createdAt,
-            items: values.items,
-            photoPath: values.photoPath,
-            totalCalories: values.totalCalories,
-          },
-          target: meals.id,
-        });
+      const currentMessage = context.input.messages?.at(-1);
+      const image = currentMessage?.parts.find(part => part.type === "image");
+      if (image?.fetchMetadata?.fileId) {
+        context.context.set("meal-presentation.photoUniqueId", image.fetchMetadata.fileId);
       }
-
+    },
+    "agent:error"(event) {
+      const presentation = event.extensions.get("meal-presentation");
+      if (presentation?.approved) return event.reply(presentation.text);
+    },
+    "agent:finish"(event) {
+      const presentation = event.extensions.get("meal-presentation");
+      const text = presentation?.text ?? event.text;
       const cost = event.invocation.usage?.cost?.formatted ?? "Cost unavailable";
-      return event.reply([output.text, cost].join("\n\n"));
+      return event.reply([text, cost].filter(Boolean).join("\n\n"));
     },
   },
 });

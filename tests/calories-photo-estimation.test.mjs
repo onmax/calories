@@ -48,7 +48,7 @@ test("Telegram audio is transcribed before meal analysis", () => {
   );
   assert.match(
     instructions,
-    /new meal described in text or transcribed audio.*return an `upsert`/is,
+    /new meal described in text or transcribed audio.*call `present_meal`/is,
   );
 });
 
@@ -69,21 +69,27 @@ test("the primary model stays inside Telegram's background execution window", ()
   assert.match(agent, /timeout:\s*28_000/);
 });
 
-test("structured output separates replies from meal mutations", () => {
-  assert.match(agent, /z\.discriminatedUnion\("type"/);
-  assert.match(agent, /type:\s*z\.literal\("reply"\)/);
-  assert.match(agent, /type:\s*z\.literal\("upsert"\)/);
-  assert.match(agent, /output:\s*\{ schema: caloriesOutputSchema \}/);
+test("the presentation tool separates replies from meal mutations", () => {
+  assert.match(agent, /name:\s*"present_meal"/);
+  assert.match(agent, /inputSchema:\s*mealPresentationSchema/);
+  assert.match(instructions, /reply without a tool call/is);
+  assert.doesNotMatch(agent, /output:\s*\{ schema:/);
   assert.match(agent, /db\(\{ mode: "read" \}\)/);
   assert.doesNotMatch(agent, /db\(\{ mode: "write" \}\)/);
 });
 
-test("meal mutations persist before their success response is delivered", () => {
-  assert.match(agent, /if \(output\.type === "upsert"\)/);
+test("the tool approves meal mutations only after persistence", () => {
   assert.match(agent, /await database\.insert\(meals\).*onConflictDoUpdate/is);
   assert.match(agent, /onConflictDoUpdate\(\{[\s\S]*target: meals\.id/);
-  assert.match(agent, /return event\.reply\(\[output\.text, cost\]/);
-  assert.doesNotMatch(agent, /toolResults\.some/);
+  assert.match(agent, /approved:\s*true/);
+  assert.match(agent, /presentation\?\.approved.*event\.reply\(presentation\.text\)/s);
+  assert.match(instructions, /saved only when the tool returns `approved: true`/is);
+});
+
+test("Telegram identity is parsed from the adapter's composite message ID", () => {
+  assert.match(agent, /compositeMessageId\?\.lastIndexOf\(":"\)/);
+  assert.match(agent, /messageChatId !== telegramChatId/);
+  assert.match(agent, /Number\.isSafeInteger\(telegramMessageId\)/);
 });
 
 test("server failures only claim what was actually persisted", () => {
@@ -95,7 +101,7 @@ test("server failures only claim what was actually persisted", () => {
 test("photo persistence completes before a meal can be treated as logged", () => {
   assert.match(
     instructions,
-    /new photo meal.*upload.*current input attachment.*before returning the `upsert`/is,
+    /new photo meal.*upload.*current input attachment.*before calling `present_meal`/is,
   );
   assert.match(
     instructions,
@@ -103,7 +109,7 @@ test("photo persistence completes before a meal can be treated as logged", () =>
   );
   assert.match(
     instructions,
-    /incomplete.*repair.*current attachment.*returning an `upsert`.*without adding.*calories again/is,
+    /incomplete.*repair.*current attachment.*calling `present_meal`.*without adding.*calories again/is,
   );
 });
 
