@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { resolveMealCreatedAt } from "../server/agents/calories/time.ts";
 
 const instructions = await readFile(
   new URL("../server/agents/calories/instructions.md", import.meta.url),
@@ -89,22 +88,17 @@ test("the tool approves meal mutations only after persistence", () => {
   assert.match(instructions, /saved only when the tool returns `approved: true`/is);
 });
 
-test("the presentation tool owns relative timestamps and meal links", () => {
-  assert.match(agent, /resolveMealCreatedAt\(/);
+test("the agent resolves natural-language timestamps and the tool owns meal links", () => {
+  assert.match(agent, /context\.context\.set\("messageSentAt", currentMessage\.createdAt\)/);
+  assert.match(agent, /context\.context\.set\("journalTimezone", "Europe\/Copenhagen"\)/);
+  assert.match(instructions, /message was sent at.*context\.messageSentAt/is);
+  assert.match(instructions, /interpret.*natural-language meal time.*context\.journalTimezone/is);
+  assert.match(instructions, /when the user gives no meal time, use the message timestamp/is);
+  assert.match(agent, /createdAt:\s*new Date\(proposal\.data\.meal\.createdAt\)/);
+  assert.doesNotMatch(agent, /resolveMealCreatedAt/);
   assert.match(agent, /dashboardUrl.*values\.id/s);
   assert.doesNotMatch(agent, /text:\s*z\.string\(\)\.min\(1\)/);
   assert.doesNotMatch(instructions, /put the rendered user-facing template in `text`/i);
-});
-
-test("last night is resolved from the Telegram message date", () => {
-  assert.equal(
-    resolveMealCreatedAt(
-      "2025-05-13T18:50:00.000Z",
-      "last night at 18:50 i had black beans and rice",
-      "2026-08-04T14:06:00.000Z",
-    ).toISOString(),
-    "2026-08-03T18:50:00.000Z",
-  );
 });
 
 test("Telegram identity is parsed from the adapter's composite message ID", () => {

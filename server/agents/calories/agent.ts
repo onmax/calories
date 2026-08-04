@@ -5,7 +5,6 @@ import { useServerEnv } from "#vitehub/env/server";
 import { and, gte, lt } from "drizzle-orm";
 import { z } from "zod";
 import database, { meals } from "../../databases/config";
-import { resolveMealCreatedAt } from "./time";
 
 const mealDraftSchema = z.object({
   caption: z.string().nullable(),
@@ -108,11 +107,7 @@ const mealPresentation = defineCapability({
           const values = {
             ...proposal.data.meal,
             ...identity,
-            createdAt: resolveMealCreatedAt(
-              proposal.data.meal.createdAt,
-              context.context.get<string>("meal-presentation.sourceText"),
-              context.context.get<string>("meal-presentation.messageSentAt"),
-            ),
+            createdAt: new Date(proposal.data.meal.createdAt),
             telegramPhotoUniqueId: context.context.get<string>("meal-presentation.photoUniqueId") ?? null,
           };
           const dashboardUrl = context.context.get<string>("dashboardUrl");
@@ -240,13 +235,9 @@ export default defineAgent({
         context.context.set("dashboardUrl", new URL(context.request.url).origin);
       }
       const currentMessage = context.input.messages?.at(-1);
-      const sourceText = currentMessage?.parts
-        .filter(part => part.type === "text")
-        .map(part => part.text)
-        .join("\n");
-      if (sourceText) context.context.set("meal-presentation.sourceText", sourceText);
       if (currentMessage?.createdAt) {
-        context.context.set("meal-presentation.messageSentAt", currentMessage.createdAt);
+        context.context.set("messageSentAt", currentMessage.createdAt);
+        context.context.set("journalTimezone", "Europe/Copenhagen");
       }
       const image = currentMessage?.parts.find(part => part.type === "image");
       if (image?.fetchMetadata?.fileId) {
