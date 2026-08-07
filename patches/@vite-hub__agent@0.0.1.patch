@@ -429,3 +429,108 @@ index c9b4a69..9dfe8f1 100644
 @@ -1698 +1702 @@
 -	chat.onSubscribedMessage((thread, message, messageContext) => handleChatSdkMessage(agent, context, registration, thread, message, message.isMention ? "mention" : "subscribed", options, state, messageContext, maximumInvocationTimeout));
 +	chat.onSubscribedMessage((thread, message, messageContext) => handleQueuedMessages(thread, message, messageContext, (queuedMessage) => queuedMessage.isMention ? "mention" : "subscribed"));
+diff --git a/dist/evalite-config-CCzQOZXG.js b/dist/evalite-config-CCzQOZXG.js
+index aeb96d9e9ead574d5b1c0646ece36151405f9703..93ac82678ac46003e3d80d2fce1e0ce5d1f2e639 100644
+--- a/dist/evalite-config-CCzQOZXG.js
++++ b/dist/evalite-config-CCzQOZXG.js
+@@ -617,6 +617,7 @@ function createViteAgentRuntimeContext(server, req, identity, options) {
+ 		agentIdentity: identity,
+ 		request: createRequest(server, req, options.fallbackRoute),
+ 		...options.run ? { run: options.run } : {},
++		...options.capabilities ? { capabilities: options.capabilities } : {},
+ 		runtime: "vite",
+ 		runtimeConfig: {},
+ 		waitUntil: (task) => void Promise.resolve(task).catch(() => {})
+diff --git a/dist/vite.js b/dist/vite.js
+index f9b100626cfd06472824bfb1e89d236e940b1202..6149301212f7049f76d672921ebcec1b7f783754 100644
+--- a/dist/vite.js
++++ b/dist/vite.js
+@@ -1251,7 +1251,19 @@ async function runCapabilityCliWithTimeout(agent, cli, execution, context, input
+ 		unlink();
+ 	}
+ }
+-async function handleAgentInvocationStreamRequest(server, req, tokenOptions, abortSignal) {
++async function resolveDevRuntimeCapabilities(server, definitions) {
++	const capabilities = {};
++	for (const definition of definitions) {
++		if (definition.packageName === false) {
++			capabilities[definition.name] = false;
++			continue;
++		}
++		const module = await server.ssrLoadModule(definition.packageName);
++		capabilities[definition.name] = module[definition.importName];
++	}
++	return capabilities;
++}
++async function handleAgentInvocationStreamRequest(server, req, tokenOptions, abortSignal, capabilities) {
+ 	const entries = await discoverStreamAgents(server);
+ 	if (req.method === "GET") {
+ 		await ensureWorkspaceDevToken(server.config.root, tokenOptions);
+@@ -1268,7 +1280,8 @@ async function handleAgentInvocationStreamRequest(server, req, tokenOptions, abo
+ 			},
+ 			runtime: createViteAgentRuntimeContext(server, req, entry.identity, {
+ 				fallbackRoute: agentInvocationStreamRoute,
+-				run
++				run,
++				capabilities
+ 			})
+ 		}) : void 0;
+ 		const response = {
+@@ -1291,7 +1304,8 @@ async function handleAgentInvocationStreamRequest(server, req, tokenOptions, abo
+ 	const run = body.run || devRun(entry.name);
+ 	const context = createViteAgentRuntimeContext(server, req, entry.identity, {
+ 		fallbackRoute: agentInvocationStreamRoute,
+-		run
++		run,
++		capabilities
+ 	});
+ 	const payload = payloadFromBody(body);
+ 	const timeout = typeof body.timeout === "number" && Number.isFinite(body.timeout) ? body.timeout : 9e4;
+@@ -1397,8 +1411,9 @@ function errorResponse(error) {
+ 	if (error instanceof Response) return error;
+ 	return new Response("Agent Invocation Stream endpoint failed.", { status: 500 });
+ }
+-async function registerAgentInvocationStreamEndpoint(server) {
++async function registerAgentInvocationStreamEndpoint(server, runtimeCapabilities = []) {
+ 	const tokenOptions = { serverId: workspaceDevTokenServerId(server.config.server.port) };
++	const capabilities = await resolveDevRuntimeCapabilities(server, runtimeCapabilities);
+ 	await refreshWorkspaceDevToken(server.config.root, tokenOptions);
+ 	server.middlewares.use((req, res, next) => {
+ 		if (!routeMatches(req)) {
+@@ -1415,7 +1430,7 @@ async function registerAgentInvocationStreamEndpoint(server) {
+ 			return;
+ 		}
+ 		const abort = createAbortSignalFromClose(res, "[vitehub] Agent Invocation Stream response closed.");
+-		handleAgentInvocationStreamRequest(server, req, tokenOptions, abort.signal).catch(errorResponse).then((response) => writeViteResponse(res, response)).finally(abort.dispose);
++		handleAgentInvocationStreamRequest(server, req, tokenOptions, abort.signal, capabilities).catch(errorResponse).then((response) => writeViteResponse(res, response)).finally(abort.dispose);
+ 	});
+ }
+ //#endregion
+@@ -2754,6 +2769,6 @@ function hubAgent(options) {
+ 	return {
+ 		name: "@vite-hub/agent/vite",
+ 		async configureServer(server) {
+-			if (agent !== false) await registerAgentInvocationStreamEndpoint(server);
++			if (agent !== false) await registerAgentInvocationStreamEndpoint(server, runtimeCapabilities);
+ 		},
+ 		async handleHotUpdate(context) {
+			const file = context.file.replace(/\\/g, "/");
+
+diff --git a/dist/cli.js b/dist/cli.js
+--- a/dist/cli.js
++++ b/dist/cli.js
+@@ -199,1 +199,1 @@
+-	if (typeof result.root === "string" && result.root !== context.rootDir) {
++	if (typeof result.root === "string" && result.root !== context.rootDir && !result.root.startsWith(`${context.rootDir}/`)) {
+@@ -1165,1 +1165,1 @@
+-	if (typeof discovery.root === "string" && discovery.root !== context.rootDir) {
++	if (typeof discovery.root === "string" && discovery.root !== context.rootDir && !discovery.root.startsWith(`${context.rootDir}/`)) {
+
+diff --git a/dist/vite.js b/dist/vite.js
+--- a/dist/vite.js
++++ b/dist/vite.js
+@@ -1814,3 +1814,4 @@
+ function shouldInstallCloudflareAgentState(options, config) {
+ 	if (!options) return false;
++	if (config.mode === "development") return false;
+ 	const { provider, url } = options.providers.state;

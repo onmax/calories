@@ -27,9 +27,6 @@ export default defineNuxtConfig({
     colorMode: false,
   },
   ssr: false,
-  routeRules: {
-    "/": { prerender: true },
-  },
   icon: {
     clientBundle: { scan: true },
     fallbackToApi: false,

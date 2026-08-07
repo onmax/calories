@@ -1,0 +1,5 @@
+{{{ text }}}
+
+Dashboard: {{ dashboardUrl }}
+
+{{ cost }}

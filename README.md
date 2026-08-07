@@ -8,7 +8,7 @@ Production: <https://vitehub-calories.maximogarciamtnez.workers.dev>
 
 - Nuxt nightly, Vue, and Nuxt UI render the read-only dashboard as a client-side app.
 - Nitro v3 emits the Cloudflare Worker and serves both the UI and API.
-- ViteHub Agent connects Telegram to a model with database, blob, and usage-cost Capabilities, then streams the reply through Chat SDK.
+- ViteHub Agent connects Telegram to a model with database-write, blob, transcription, and usage-cost Capabilities, then renders the structured result through Chat SDK.
 - ViteHub Blob stores original photos privately in Cloudflare R2.
 - ViteHub Database uses generated local artifacts during development and a Cloudflare D1 binding in production.
 - Vercel AI SDK sends images to Vercel AI Gateway using `AI_GATEWAY_API_KEY`.
@@ -24,7 +24,7 @@ Telegram message
   → replace the fallback with the result, usage cost, and dashboard URL
 ```
 
-The same Agent Definition handles new meals, corrections, removals, and journal questions. Telegram supplies bounded thread history for references, while D1 remains authoritative for entries and totals.
+The same Agent Definition handles new meals, corrections, removals, and journal questions. Telegram supplies the current message, while D1 remains authoritative for entries and totals.
 
 ## Project layout
 
@@ -34,7 +34,8 @@ app/
   assets/main.css                 dashboard styling
   utils/meal.ts                   meal types and display helpers
 server/
-  agents/calories/agent.ts        Telegram filter, analysis, persistence, and streamed reply
+  agents/calories/agent.ts        Telegram channel, structured output, persistence, and reply
+  templates/{meal,reply}.md       Markdown reply templates with runtime values
   agents/calories/instructions.md model instructions
   databases/config.ts             ViteHub/Drizzle D1 schema
   databases/migrations/           generated D1 migrations

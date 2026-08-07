@@ -8,6 +8,13 @@
       "when": 1785589841903,
       "tag": "0000_silky_carmella_unuscione",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786101279000,
+      "tag": "0001_remove_telegram_columns",
+      "breakpoints": true
     }
   ]
 }

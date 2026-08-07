@@ -10,47 +10,46 @@ const agent = await readFile(
   new URL("../server/agents/calories/agent.ts", import.meta.url),
   "utf8",
 );
+const replyTemplate = await readFile(
+  new URL("../server/templates/reply.md", import.meta.url),
+  "utf8",
+);
 const mealAnalysis = await readFile(
   new URL("../app/components/MealAnalysis.vue", import.meta.url),
   "utf8",
 );
+const database = await readFile(
+  new URL("../server/databases/config.ts", import.meta.url),
+  "utf8",
+);
 
 test("visible food photos are logged from visual estimates", () => {
-  assert.match(
-    instructions,
-    /new (?:meal )?photo.*identify.*food.*estimate.*metric portion/is,
-  );
-  assert.match(
-    instructions,
-    /never ask.*identify the food.*portion size.*visual estimate/is,
-  );
-  assert.match(
-    instructions,
-    /ambiguous.*neutral.*best metric portion estimate.*low confidence/is,
-  );
+  assert.match(instructions, /photos.*estimate metric portions/is);
+  assert.match(instructions, /never ask for information.*visual estimate/is);
+  assert.match(instructions, /low confidence.*ambiguous/is);
 });
 
-test("each photo analysis is isolated from prior meals", () => {
-  assert.match(agent, /triggerHistory:\s*"none"/);
-  assert.doesNotMatch(agent, /triggerHistory:\s*\{/);
+test("the Agent returns the model's Markdown directly", () => {
+  assert.match(agent, /output: \{ schema: v\.string\(\) \}/);
+  assert.match(agent, /text: event\.text \?\? ""/);
+  assert.doesNotMatch(agent, /mealSchema|outputSchema|v\.variant|type: v\.literal/);
+  assert.doesNotMatch(agent, /present_meal|defineCapability|toJsonSchema/);
+  assert.doesNotMatch(instructions, /present_meal/);
 });
 
-test("Telegram turns wait behind the active turn", () => {
-  assert.match(agent, /concurrency:\s*"queue"/);
-  assert.match(agent, /lockScope:\s*"channel"/);
-  assert.doesNotMatch(agent, /concurrency:\s*"parallel"/);
+test("Telegram turns use the ViteHub Channel and wait behind the active turn", () => {
+  assert.match(agent, /import \{ telegram \} from "vite-hub\/agent\/channels"/);
+  assert.match(agent, /telegram\(\{/);
+  assert.match(agent, /concurrency: "queue"/);
+  assert.match(agent, /lockScope: "channel"/);
+  assert.match(agent, /triggerHistory: "none"/);
+  assert.doesNotMatch(agent, /channels:\s*\{\s*telegram:\s*\{/);
 });
 
-test("Telegram audio is transcribed before meal analysis", () => {
+test("Telegram audio is transcribed before the model responds", () => {
   assert.match(agent, /transcribe\(\(\)\s*=>/);
-  assert.match(
-    agent,
-    /transcriptionModel\("openai\/gpt-4o-transcribe"\)/,
-  );
-  assert.match(
-    instructions,
-    /new meal described in text or transcribed audio.*call `present_meal`/is,
-  );
+  assert.match(agent, /transcriptionModel\("openai\/gpt-4o-transcribe"\)/);
+  assert.match(instructions, /text or transcribed audio.*photos/is);
 });
 
 test("the dashboard lets every meal be selected without requiring a photo", () => {
@@ -63,82 +62,47 @@ test("the dashboard lets every meal be selected without requiring a photo", () =
 test("the primary model stays inside Telegram's background execution window", () => {
   assert.match(agent, /maxRetries:\s*0/);
   assert.match(agent, /gateway\("google\/gemini-3-flash"/);
-  assert.match(
-    agent,
-    /fallbacks:\s*\["openai\/gpt-5\.4-mini",\s*"moonshotai\/kimi-k3"\]/,
-  );
-  assert.match(agent, /timeout:\s*28_000/);
+  assert.match(agent, /"google\/gemini-2\.5-flash"/);
+  assert.match(agent, /"google\/gemini-2\.5-flash-lite"/);
+  assert.match(agent, /timeout: 28_000/);
 });
 
-test("the presentation tool separates replies from meal mutations", () => {
-  assert.match(agent, /present_meal:\s*\{/);
-  assert.match(agent, /inputSchema:\s*toJsonSchema\(mealPresentationSchema\)/);
-  assert.match(instructions, /reply without a tool call/is);
-  assert.doesNotMatch(agent, /output:\s*\{ schema:/);
-  assert.match(agent, /db\(\{ mode: "read" \}\)/);
-  assert.doesNotMatch(agent, /db\(\{ mode: "write" \}\)/);
+test("the finish hook persists meals and renders the final reply", () => {
+  assert.match(agent, /db\(\{ mode: "write" \}\)/);
+  assert.match(agent, /renderTemplate\("reply"/);
+  assert.match(agent, /event\.reply\(/);
+  assert.match(instructions, /db_exec.*persist.*complete row/is);
+  assert.match(instructions, /final concise Markdown response/is);
+  assert.doesNotMatch(agent, /database\.insert|saveMeal|telegramIdentity/);
 });
 
-test("the tool approves meal mutations only after persistence", () => {
-  assert.match(agent, /await database\.insert\(meals\).*onConflictDoUpdate/is);
-  assert.match(agent, /onConflictDoUpdate\(\{[\s\S]*target: meals\.id/);
-  assert.match(agent, /if \(previous\?\.approved\) return previous/);
-  assert.match(agent, /approved:\s*true/);
-  assert.match(agent, /presentation\?\.approved.*event\.reply\(presentation\.text\)/s);
-  assert.match(instructions, /saved only when the tool returns `approved: true`/is);
-});
-
-test("the agent resolves natural-language timestamps and the tool owns meal links", () => {
-  assert.match(agent, /context\.context\.set\("messageSentAt", currentMessage\.createdAt\)/);
-  assert.match(agent, /context\.context\.set\("journalTimezone", "Europe\/Copenhagen"\)/);
-  assert.match(instructions, /message was sent at.*context\.messageSentAt/is);
-  assert.match(instructions, /resolve that time.*context\.journalTimezone/is);
-  assert.match(instructions, /set `createdAt` only when the user states or implies a different meal time/is);
-  assert.match(instructions, /otherwise omit `createdAt`; the tool uses the message timestamp/is);
-  assert.match(agent, /createdAt:\s*v\.optional\(v\.pipe\(v\.string\(\), v\.isoTimestamp\(\)\)\)/);
-  assert.match(agent, /proposal\.output\.meal\.createdAt[\s\S]*messageSentAt[\s\S]*Date\.now\(\)/);
-  assert.doesNotMatch(agent, /resolveMealCreatedAt/);
-  assert.match(agent, /dashboardUrl.*values\.id/s);
-  assert.doesNotMatch(agent, /text:\s*z\.string\(\)\.min\(1\)/);
-  assert.doesNotMatch(instructions, /put the rendered user-facing template in `text`/i);
-});
-
-test("the meal tool has an execution-ready title and timestamp description", () => {
-  assert.match(agent, /name:\s*"Present meal"/);
-  assert.match(agent, /description:.*include createdAt only when.*different from the current Telegram message/is);
-  assert.match(agent, /import \* as v from "valibot"/);
-  assert.match(agent, /import \{ toJsonSchema \} from "@valibot\/to-json-schema"/);
-});
-
-test("Telegram identity is parsed from the adapter's composite message ID", () => {
-  assert.match(agent, /compositeMessageId\?\.lastIndexOf\(":"\)/);
-  assert.match(agent, /messageChatId !== telegramChatId/);
-  assert.match(agent, /Number\.isSafeInteger\(telegramMessageId\)/);
-});
-
-test("server failures only claim what was actually persisted", () => {
-  assert.match(agent, /status\s*>=\s*500\s*&&\s*status\s*<\s*600/);
-  assert.match(agent, /AI is temporarily unavailable/);
-  assert.doesNotMatch(agent, /already in your dashboard/is);
-});
-
-test("photo persistence completes before a meal can be treated as logged", () => {
-  assert.match(
-    instructions,
-    /new photo meal.*upload.*current input attachment.*before calling `present_meal`/is,
-  );
-  assert.match(
-    instructions,
-    /duplicate only when.*record is complete.*photo_path.*items.*total_calories/is,
-  );
-  assert.match(
-    instructions,
-    /incomplete.*repair.*current attachment.*calling `present_meal`.*without adding.*calories again/is,
-  );
-});
-
-test("usage cost formatting stays inside the capability", () => {
-  assert.match(agent, /usageCost\(\{\s*format:\s*"usd"\s*\}\)/);
+test("the finish hook owns timestamp and dashboard metadata", () => {
+  assert.match(agent, /dashboardUrl\(event\)/);
+  assert.match(agent, /event\.runtime\.request/);
+  assert.doesNotMatch(agent, /useRequestURL|useRequestUrl/);
   assert.match(agent, /invocation\.usage\?\.cost\?\.formatted/);
-  assert.doesNotMatch(agent, /formatUsageCost|Intl\.NumberFormat/);
+  assert.match(instructions, /Omit `createdAt`.*current Telegram message time/is);
+});
+
+test("photo persistence still happens before the meal is reported", () => {
+  assert.match(instructions, /upload a new attachment with `blob_edit`/i);
+  assert.match(instructions, /repairing an incomplete duplicate/i);
+  assert.match(instructions, /db_exec.*persist/is);
+});
+
+test("the meal schema is independent of Telegram identity", () => {
+  assert.doesNotMatch(database, /telegram(Chat|Message|Photo)/);
+  assert.doesNotMatch(database, /uniqueIndex/);
+  assert.doesNotMatch(agent, /telegramIdentity|telegramChatId|telegramMessageId|telegramPhotoUniqueId/);
+});
+
+test("dynamic Markdown templates own the user-facing shape", () => {
+  assert.match(replyTemplate, /\{\{\{ text \}\}\}/);
+  assert.match(replyTemplate, /Dashboard: \{\{ dashboardUrl \}\}/);
+  assert.match(replyTemplate, /\{\{ cost \}\}/);
+});
+
+test("server failures use ViteHub's shared fallback", () => {
+  assert.doesNotMatch(agent, /errorStatus|errorFallbackText/);
+  assert.doesNotMatch(agent, /already in your dashboard/is);
 });
