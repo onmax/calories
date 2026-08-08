@@ -1,5 +1,5 @@
 diff --git a/dist/routes-Ck25LnWN.js b/dist/routes-Ck25LnWN.js
-index 17d91bd5b810edb5827becc004d0ed6cf1bdaf22..f4fc4928099b6a16aa61e85d0b79cbdfa2bd1c75 100644
+index 17d91bd5b810edb5827becc004d0ed6cf1bdaf22..8cda203212aeebbb48a2fc2077c24a5ea433d292 100644
 --- a/dist/routes-Ck25LnWN.js
 +++ b/dist/routes-Ck25LnWN.js
 @@ -1772,6 +1772,43 @@ async function chatMessageParts(message, options = {}) {
@@ -63,3 +63,53 @@ index 17d91bd5b810edb5827becc004d0ed6cf1bdaf22..f4fc4928099b6a16aa61e85d0b79cbdf
  		role: message.author.isMe ? "assistant" : "user"
  	};
  }
+@@ -2206,7 +2244,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
+ 		if (isResolvedAgentTriggerHandledInvocation(invocation)) return;
+ 		assertChatDeliveryOptions(options || {});
+ 		const manualDelivery = options?.delivery === "manual";
+-		const durableDelivery = manualDelivery && options?.durable === true;
++		const durableDelivery = manualDelivery && options?.durable !== false;
+ 		const streamsPhasedReplies = !manualDelivery && (options?.stream !== false || options?.commentary !== void 0);
+ 		run = invocation.run;
+ 		const runContext = {
+diff --git a/dist/capabilities.js b/dist/capabilities.js
+index fbf70607f9cb097f9d8dd61b7362f4e818bd4449..83608e17e50e3f0b0990035a3e8bd3857cce518a 100644
+--- a/dist/capabilities.js
++++ b/dist/capabilities.js
+@@ -5824,10 +5824,14 @@ function selectAgentDatabase(handle, database = "default") {
+ 	if (database !== "default") throw new Error(`[vitehub] Database "${database}" is not available.`);
+ 	return handle;
+ }
++async function resolveDatabasePrimitive(context) {
++	if (context.capabilities?.db !== void 0) return requirePrimitive$1(context, "db");
++	return (await import("@vite-hub/database/drizzle")).agentDb;
++}
+ function dbTools(mode, schemaMode, options) {
+-	return (context) => {
++	return async (context) => {
+ 		const databaseName = options.database || "default";
+-		const database = selectAgentDatabase(requirePrimitive$1(context, "db"), databaseName);
++		const database = selectAgentDatabase(await resolveDatabasePrimitive(context), databaseName);
+ 		const tools = {
+ 			db_query: createTool$2({
+ 				description: "Run one read-only SQL query against the configured ViteHub database.",
+diff --git a/dist/src-Dv-FTdbj.js b/dist/src-Dv-FTdbj.js
+index 0bd7181acecefc5db6e1b6e582d0ffbde25bd831..b45a98e7f30021f4d060cdb26ec608101df09586 100644
+--- a/dist/src-Dv-FTdbj.js
++++ b/dist/src-Dv-FTdbj.js
+@@ -690,12 +690,13 @@ async function runAgentAsWorkflow(agent, context, input, options = {}) {
+ 	}
+ 	const capabilityNames = Object.entries(context.capabilities || {}).filter(([, capability]) => capability !== false).map(([name]) => name);
+ 	const disabledCapabilities = Object.fromEntries(Object.entries(context.capabilities || {}).filter(([, capability]) => capability === false));
+-	if (input.context?.["vitehub.agent.require-workflow"] === true && capabilityNames.length) return void 0;
+-	if ("discoveryDefault" in binding && capabilityNames.length) return void 0;
++	if (input.context?.["vitehub.agent.require-workflow"] === true && capabilityNames.some((name) => name !== "blob" && name !== "db")) return void 0;
++	if ("discoveryDefault" in binding && capabilityNames.some((name) => name !== "blob" && name !== "db")) return void 0;
+ 	const handle = await getAgentWorkflowHandle(agent, resolveAgentWorkflowName(agent, binding, context), Boolean(context.agentIdentity));
+ 	const resolvedContext = createResolvedRuntimeContext(context);
+ 	const workflowInput = { ...input };
+ 	delete workflowInput.abortSignal;
++	if (input.context?.["vitehub.agent.require-workflow"] === true) delete workflowInput.timeout;
+ 	if (workflowInput.messages) workflowInput.messages = await materializeMessageAttachmentData(workflowInput.messages);
+ 	if (workflowInput.message && typeof workflowInput.message !== "string") [workflowInput.message] = await materializeMessageAttachmentData([workflowInput.message]);
+ 	if (Array.isArray(workflowInput.prompt)) workflowInput.prompt = await materializeMessageAttachmentData(workflowInput.prompt);

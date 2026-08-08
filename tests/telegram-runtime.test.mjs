@@ -35,7 +35,7 @@ test("Telegram replies include the original photo and duplicate updates run once
           allowedUserIds: [42],
           botToken: "test-token",
           webhookSecret: false,
-          messages: { delivery: "manual", state, triggerHistory: "none" },
+          messages: { delivery: "manual", durable: false, state, triggerHistory: "none" },
         }),
       },
       driver: {
