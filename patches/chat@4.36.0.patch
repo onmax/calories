@@ -1,0 +1,67 @@
+diff --git a/dist/index.js b/dist/index.js
+index d13dcd2f4ac5837cc18b84e1cbb1310bd0e5a0ca..f64117f0fb859856e7b9d0876d070cf4ed317978 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -277,6 +277,8 @@ var Message = class _Message {
+   metadata;
+   /** Attachments */
+   attachments;
++  /** Message this message replies to */
++  replyTo;
+   /**
+    * Whether the bot is @-mentioned in this message.
+    *
+@@ -328,6 +330,7 @@ var Message = class _Message {
+     this.author = data.author;
+     this.metadata = data.metadata;
+     this.attachments = data.attachments;
++    this.replyTo = data.replyTo;
+     this.isMention = data.isMention;
+     this.links = data.links ?? [];
+   }
+@@ -370,6 +373,7 @@ var Message = class _Message {
+         height: att.height,
+         fetchMetadata: att.fetchMetadata
+       })),
++      replyTo: this.replyTo?.toJSON(),
+       isMention: this.isMention,
+       links: this.links.length > 0 ? this.links.map((link2) => ({
+         url: link2.url,
+@@ -398,6 +402,7 @@ var Message = class _Message {
+         editedAt: json.metadata.editedAt ? new Date(json.metadata.editedAt) : void 0
+       },
+       attachments: json.attachments,
++      replyTo: json.replyTo ? _Message.fromJSON(json.replyTo) : void 0,
+       isMention: json.isMention,
+       links: json.links
+     });
+diff --git a/dist/types-Agf6-Rm1.d.ts b/dist/types-Agf6-Rm1.d.ts
+index 7eafc5fea3f19696c12d12768999a08ff787f30a..990da4b0cdcc86183c6767c9eeef10fb34012164 100644
+--- a/dist/types-Agf6-Rm1.d.ts
++++ b/dist/types-Agf6-Rm1.d.ts
+@@ -27,6 +27,8 @@ interface MessageData<TRawMessage = unknown> {
+     metadata: MessageMetadata;
+     /** Platform-specific raw payload (escape hatch) */
+     raw: TRawMessage;
++    /** Message this message replies to */
++    replyTo?: Message<TRawMessage>;
+     /** Plain text content (all formatting stripped) */
+     text: string;
+     /** Thread this message belongs to */
+@@ -73,6 +75,7 @@ interface SerializedMessage {
+         editedAt?: string;
+     };
+     raw: unknown;
++    replyTo?: SerializedMessage;
+     text: string;
+     threadId: string;
+ }
+@@ -118,6 +121,8 @@ declare class Message<TRawMessage = unknown> {
+     metadata: MessageMetadata;
+     /** Attachments */
+     attachments: Attachment[];
++    /** Message this message replies to */
++    replyTo?: Message<TRawMessage>;
+     /**
+      * Whether the bot is @-mentioned in this message.
+      *

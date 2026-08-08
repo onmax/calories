@@ -1,0 +1,65 @@
+diff --git a/dist/routes-Ck25LnWN.js b/dist/routes-Ck25LnWN.js
+index 17d91bd5b810edb5827becc004d0ed6cf1bdaf22..f4fc4928099b6a16aa61e85d0b79cbdfa2bd1c75 100644
+--- a/dist/routes-Ck25LnWN.js
++++ b/dist/routes-Ck25LnWN.js
+@@ -1772,6 +1772,43 @@ async function chatMessageParts(message, options = {}) {
+ 	}
+ 	return parts;
+ }
++async function chatMessagePartsWithReply(message, options = {}) {
++	const parts = await chatMessageParts(message, options);
++	if (!message.replyTo) return parts;
++	const replyParts = (await chatMessageParts(message.replyTo, options)).map((part, index) => ({
++		...part,
++		id: `reply-${part.id || index + 1}`
++	}));
++	return [{
++		id: "reply-context-start",
++		text: "<reply_to_message>\n",
++		type: "text"
++	}, ...replyParts, {
++		id: "reply-context-end",
++		text: "\n</reply_to_message>\n<user_message>\n",
++		type: "text"
++	}, ...parts, {
++		id: "user-message-end",
++		text: "\n</user_message>",
++		type: "text"
++	}];
++}
++function chatReplyMetadata(message) {
++	const replyTo = message.replyTo;
++	if (!replyTo) return;
++	return objectWithoutUndefined({
++		attachmentCount: replyTo.attachments.length,
++		author: objectWithoutUndefined({
++			fullName: replyTo.author.fullName,
++			isBot: replyTo.author.isBot,
++			userId: replyTo.author.userId,
++			userName: replyTo.author.userName
++		}),
++		dateSent: isoDate(replyTo.metadata.dateSent),
++		messageId: replyTo.id,
++		text: replyTo.text
++	});
++}
+ function chatMessageMetadata(thread, message, messageContext) {
+ 	const platformChannelId = thread.adapter.channelIdFromThreadId(message.threadId);
+ 	return objectWithoutUndefined({ chat: objectWithoutUndefined({
+@@ -1779,6 +1816,7 @@ function chatMessageMetadata(thread, message, messageContext) {
+ 		editedAt: isoDate(message.metadata.editedAt),
+ 		isMention: message.isMention,
+ 		messageId: message.id,
++		replyTo: chatReplyMetadata(message),
+ 		platform: objectWithoutUndefined({
+ 			channelId: platformChannelId,
+ 			threadId: message.threadId
+@@ -1793,7 +1831,7 @@ async function chatSdkMessageToUiMessage(message, metadata, options) {
+ 		createdAt: isoDate(message.metadata.dateSent),
+ 		id: message.id,
+ 		...metadata ? { metadata } : {},
+-		parts: await chatMessageParts(message, options),
++		parts: await chatMessagePartsWithReply(message, options),
+ 		role: message.author.isMe ? "assistant" : "user"
+ 	};
+ }

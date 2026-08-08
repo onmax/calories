@@ -1,5 +1,18 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 4bfa912c30ebbacbf45d9f32d547bddc7df1a216..b97abce3658aad213f32926c6b19608f52ee46b8 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -637,7 +637,7 @@ declare class TelegramAdapter implements Adapter<TelegramThreadId, TelegramRawMe
+         fileUniqueId?: string;
+     }): Attachment;
+     rehydrateAttachment(attachment: Attachment): Attachment;
+-    protected downloadFile(fileId: string): Promise<Buffer>;
++    protected downloadFile(fileId: string): Promise<ArrayBuffer>;
+     protected sendDocument(thread: TelegramThreadId, file: {
+         filename: string;
+         data: Buffer | Blob | ArrayBuffer;
 diff --git a/dist/index.js b/dist/index.js
-index ebb87f5f1642dda55e0c088acd4a66e1a88a618f..8a29d91ab1ba6c0c31d7238047bed52645eb3ab7 100644
+index ebb87f5f1642dda55e0c088acd4a66e1a88a618f..9ef75f69c33c89d715dd207591316c4eca83642e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -798,6 +798,11 @@ var TELEGRAM_DEFAULT_POLLING_TIMEOUT_SECONDS = 30;
@@ -10,52 +23,39 @@ index ebb87f5f1642dda55e0c088acd4a66e1a88a618f..8a29d91ab1ba6c0c31d7238047bed526
 +var TELEGRAM_INCOMING_MEDIA_GROUP_LOCK_TTL_MS = 5e3;
 +var TELEGRAM_INCOMING_MEDIA_GROUP_RETRY_MS = 50;
 +var TELEGRAM_INCOMING_MEDIA_GROUP_SETTLE_MS = 1e3;
-+var TELEGRAM_INCOMING_UPDATE_TTL_MS = 864e5;
++var TELEGRAM_WEBHOOK_UPDATE_TTL_MS = 864e5;
  var TELEGRAM_MEDIA_GROUP_MIN = 2;
  var TELEGRAM_MEDIA_GROUP_MAX = 10;
  var TELEGRAM_MARKDOWN_PARSE_ERROR_PATTERN = /can't parse (?:caption )?entities/i;
-@@ -1023,6 +1028,12 @@ var TelegramAdapter = class {
+@@ -1022,6 +1027,27 @@ var TelegramAdapter = class {
+       );
        return new Response("OK", { status: 200 });
      }
-     try {
-+      if (!(await this.claimWebhookUpdate(update.update_id))) {
-+        this.logger.debug("Ignoring duplicate Telegram webhook update", {
++    if (Number.isInteger(update.update_id)) {
++      try {
++        const claimed = await this.chat.getState().setIfNotExists(
++          `${this.name}:webhook-update:${update.update_id}`,
++          true,
++          TELEGRAM_WEBHOOK_UPDATE_TTL_MS
++        );
++        if (!claimed) {
++          this.logger.debug("Ignoring duplicate Telegram webhook update", {
++            updateId: update.update_id
++          });
++          return new Response("OK", { status: 200 });
++        }
++      } catch (error) {
++        this.logger.warn("Failed to claim Telegram webhook update", {
++          error: String(error),
 +          updateId: update.update_id
 +        });
-+        return new Response("OK", { status: 200 });
++        return new Response("Service unavailable", { status: 503 });
 +      }
++    }
+     try {
        this.processUpdate(update, options);
      } catch (error) {
-       this.logger.warn("Failed to process Telegram webhook update", {
-@@ -1032,6 +1043,27 @@ var TelegramAdapter = class {
-     }
-     return new Response("OK", { status: 200 });
-   }
-+  async claimWebhookUpdate(updateId) {
-+    if (!Number.isInteger(updateId) || !this.chat) {
-+      return true;
-+    }
-+    const state = this.chat.getState();
-+    const updateKey = `${this.name}:incoming-update:${updateId}`;
-+    const lock = await state.acquireLock(`${updateKey}:lock`, TELEGRAM_INCOMING_MEDIA_GROUP_LOCK_TTL_MS);
-+    if (!lock) {
-+      await this.sleep(TELEGRAM_INCOMING_MEDIA_GROUP_RETRY_MS);
-+      return this.claimWebhookUpdate(updateId);
-+    }
-+    try {
-+      if (await state.get(updateKey)) {
-+        return false;
-+      }
-+      await state.set(updateKey, true, TELEGRAM_INCOMING_UPDATE_TTL_MS);
-+      return true;
-+    } finally {
-+      await state.releaseLock(lock);
-+    }
-+  }
-   async startPolling(config) {
-     if (!this.chat) {
-       throw new ValidationError2(
-@@ -1158,11 +1190,103 @@ var TelegramAdapter = class {
+@@ -1158,11 +1184,104 @@ var TelegramAdapter = class {
        chatId: String(telegramMessage.chat.id),
        messageThreadId: telegramMessage.message_thread_id
      });
@@ -147,6 +147,7 @@ index ebb87f5f1642dda55e0c088acd4a66e1a88a618f..8a29d91ab1ba6c0c31d7238047bed526
 +        author: latestMessage.author,
 +        metadata: latestMessage.metadata,
 +        attachments: parsedMessages.flatMap((message) => message.attachments),
++        replyTo: contentMessage.replyTo ?? latestMessage.replyTo,
 +        isMention: parsedMessages.some((message) => message.isMention),
 +        links: parsedMessages.flatMap((message) => message.links)
 +      });
@@ -159,7 +160,15 @@ index ebb87f5f1642dda55e0c088acd4a66e1a88a618f..8a29d91ab1ba6c0c31d7238047bed526
    handleSlashCommandUpdate(telegramMessage, options) {
      if (!this.chat) {
        return false;
-@@ -2131,7 +2255,7 @@ var TelegramAdapter = class {
+@@ -1997,6 +2116,7 @@ var TelegramAdapter = class {
+         editedAt: raw.edit_date !== void 0 ? new Date(raw.edit_date * 1e3) : void 0
+       },
+       attachments: this.extractAttachments(raw),
++      replyTo: raw.reply_to_message ? this.parseTelegramMessage(raw.reply_to_message, threadId) : void 0,
+       isMention: this.isBotMentioned(raw, plainText)
+     });
+     return message;
+@@ -2131,7 +2251,7 @@ var TelegramAdapter = class {
          `Failed to download Telegram file ${fileId}: ${response.status}`
        );
      }
