@@ -22,21 +22,19 @@
     "postinstall": "vitehub types prepare && nuxt prepare",
     "preview": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs preview",
     "telegram:webhook": "node --env-file=.env node_modules/vite-hub/dist/bin.js channels sync --agent calories --channel telegram --stage production",
-    "test": "node --test tests/*.test.*",
     "typecheck": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs typecheck"
   },
   "dependencies": {
     "@ai-sdk/gateway": "4.0.26",
     "@internationalized/date": "3.12.2",
     "@nuxt/ui": "4.10.0",
-    "@vite-hub/database": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@bc2f516f",
+    "@vite-hub/database": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@dc3e476",
     "drizzle-orm": "0.45.2",
     "h3": "2.0.1-rc.25",
     "nuxt": "npm:nuxt-nightly@5.0.0-29746924.1554961a",
     "ofetch": "2.0.0-alpha.3",
     "tailwindcss": "4.3.3",
-    "valibot": "1.4.2",
-    "vite-hub": "https://pkg.pr.new/vite-hub/vitehub/vite-hub@bc2f516f",
+    "vite-hub": "https://pkg.pr.new/vite-hub/vitehub/vite-hub@dc3e476",
     "vue-router": "5.2.0"
   },
   "devDependencies": {

@@ -1,10 +1,9 @@
 import { createGateway } from "@ai-sdk/gateway";
-import { defineAgent, gateway } from "vite-hub/agent";
-import { blob, db, transcribe, usageCost } from "vite-hub/agent/capabilities";
+import { defineAgent } from "vite-hub/agent";
+import { blob, cost, db, transcribe } from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
 import { renderTemplate } from "#vitehub/templates";
 import { useServerEnv } from "#vitehub/env/server";
-import * as v from "valibot";
 
 function dashboardUrl(event: { runtime?: { request?: Request } }) {
   const origin = event.runtime?.request ? new URL(event.runtime.request.url).origin : undefined;
@@ -20,7 +19,7 @@ export default defineAgent({
         apiKey: useServerEnv().aiGateway.apiKey,
       }).transcriptionModel("openai/gpt-4o-transcribe"),
     })),
-    usageCost({ format: "usd" }),
+    cost(),
   ],
   channels: {
     telegram: telegram({
@@ -39,20 +38,19 @@ export default defineAgent({
   },
   driver: {
     maxRetries: 0,
-    model: gateway("google/gemini-3-flash", () => ({
+    model: () => ({
+      id: "zai/glm-5v-turbo",
       apiKey: useServerEnv().aiGateway.apiKey,
-      fallbacks: [
-        "google/gemini-2.5-flash",
-        "google/gemini-2.5-flash-lite",
-      ],
-    })),
-    output: { schema: v.string() },
+    }),
   },
   hooks: {
+    "agent:error"(event) {
+      return event.reply("Sorry, I couldn't process that message.");
+    },
     async "agent:finish"(event) {
-      const cost = event.invocation.usage?.cost?.formatted ?? "Cost unavailable";
+      const usageCost = event.invocation.usage?.cost?.display ?? "Cost unavailable";
       return event.reply(await renderTemplate("reply", {
-        cost,
+        cost: usageCost,
         dashboardUrl: dashboardUrl(event) ?? "",
         text: event.text ?? "",
       }));
