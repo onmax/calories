@@ -4,4 +4,5 @@ overrides:
 patchedDependencies:
   "@chat-adapter/telegram@4.36.0": patches/@chat-adapter__telegram@4.36.0.patch
   '@vite-hub/agent@0.0.1': patches/@vite-hub__agent@0.0.1.patch
+  '@vite-hub/workflow@0.0.1': patches/@vite-hub__workflow@0.0.1.patch
   chat@4.36.0: patches/chat@4.36.0.patch

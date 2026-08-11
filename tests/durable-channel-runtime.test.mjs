@@ -6,26 +6,34 @@ import test from "node:test";
 import { defineAgent } from "vite-hub/agent";
 import { telegram } from "vite-hub/agent/channels";
 import { createChannelWebhookRouteHandler } from "vite-hub/_internal/agent/server/internal";
-import { resetWorkflowRuntime, setWorkflowRuntimeConfig } from "vite-hub/_internal/workflow/runtime/state";
+import { resetWorkflowRuntime } from "vite-hub/_internal/workflow/runtime/state";
 import { createLibsqlAgentState } from "vite-hub/agent/state/sqlite";
 
-test("manual Telegram delivery is durable by default and drops the request deadline", async () => {
+test("durable Telegram photos start a Cloudflare Workflow", async () => {
   const directory = await mkdtemp(join(tmpdir(), "calories-durable-channel-"));
   const state = createLibsqlAgentState({ url: `file:${join(directory, "state.db")}` });
   await state.connect();
   const originalFetch = globalThis.fetch;
+  const originalCloudflareEnv = globalThis.__env__;
   const waitUntilTasks = [];
-  let release;
-  let observedTimeout = "not-run";
-  const blocked = new Promise((resolve) => {
-    release = resolve;
-  });
+  let workflowPayload;
+
+  globalThis.__env__ = {
+    WORKFLOW_63616C6F72696573: {
+      async create({ id, params }) {
+        workflowPayload = params;
+        return { id, status: async () => ({ status: "queued" }) };
+      },
+    },
+  };
 
   globalThis.fetch = async (input) => {
     const url = String(input);
     if (url.includes("/getMe")) return Response.json({ ok: true, result: { first_name: "Calories", id: 1, is_bot: true, username: "calories" } });
     if (url.includes("/getWebhookInfo")) return Response.json({ ok: true, result: { url: "https://example.test/webhooks/telegram" } });
     if (url.includes("/sendChatAction")) return Response.json({ ok: true, result: true });
+    if (url.includes("/getFile")) return Response.json({ ok: true, result: { file_path: "photos/coffee.jpg" } });
+    if (url.includes("/file/bot")) return new Response(Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]));
     if (url.includes("/sendMessage") || url.includes("/sendRichMessage")) return Response.json({ ok: true, result: { chat: { id: 42 }, message_id: 1 } });
     throw new Error(`Unexpected Telegram request: ${url}`);
   };
@@ -36,18 +44,13 @@ test("manual Telegram delivery is durable by default and drops the request deadl
         allowedUserIds: [42],
         botToken: "test-token",
         webhookSecret: false,
-        messages: { delivery: "manual", state, timeout: 28_000, triggerHistory: "none" },
+        messages: { delivery: "manual", state, timeout: 20, triggerHistory: "none" },
       }),
     },
     driver: {
-      async run(context) {
-        observedTimeout = context.input.timeout;
-        await blocked;
-        return { text: "internal output" };
+      async run() {
+        throw new Error("Agent ran inline instead of starting the Cloudflare Workflow");
       },
-    },
-    hooks: {
-      "agent:finish": (event) => event.reply("Durable reply"),
     },
   });
   const handler = createChannelWebhookRouteHandler(agent);
@@ -59,37 +62,33 @@ test("manual Telegram delivery is durable by default and drops the request deadl
         date: 1_754_000_000,
         from: { first_name: "Max", id: 42, is_bot: false },
         message_id: 103,
-        text: "Coffee",
+        caption: "Coffee",
+        photo: [{ file_id: "coffee", file_size: 4, file_unique_id: "coffee-1", height: 1, width: 1 }],
       },
     }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  setWorkflowRuntimeConfig({ provider: "vercel" });
-  const handlerPromise = handler(request, "telegram", {
-    agentName: "calories",
-    capabilities: { blob: {}, db: {} },
-    state,
-    waitUntil: (task) => waitUntilTasks.push(task),
-  });
 
   try {
-    const response = await Promise.race([
-      handlerPromise,
-      new Promise((resolve) => setTimeout(() => resolve("blocked"), 50)),
-    ]);
-    assert.notEqual(response, "blocked", "webhook waited for Agent completion");
+    const response = await handler(request, "telegram", {
+      agentName: "calories",
+      capabilities: { blob: {}, db: {} },
+      state,
+      waitUntil: (task) => waitUntilTasks.push(task),
+    });
     assert.equal(response.status, 200);
-    release();
     await Promise.all(waitUntilTasks);
-    for (let attempt = 0; attempt < 50 && observedTimeout === "not-run"; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-    assert.equal(observedTimeout, undefined);
+    assert.ok(workflowPayload, "photo invocation did not start a Workflow");
+    assert.equal(workflowPayload.input.timeout, undefined);
+    const workflowMessages = [workflowPayload.input.message, ...(workflowPayload.input.messages || [])].filter(Boolean);
+    const image = workflowMessages.flatMap((message) => message.parts).find((part) => part.type === "image");
+    assert.equal(image.data, "/9j/2Q==");
+    assert.equal("fetchData" in image, false);
   } finally {
-    release();
-    await handlerPromise.catch(() => {});
     resetWorkflowRuntime();
+    if (originalCloudflareEnv === undefined) delete globalThis.__env__;
+    else globalThis.__env__ = originalCloudflareEnv;
     globalThis.fetch = originalFetch;
     await state.disconnect();
     await rm(directory, { force: true, recursive: true });

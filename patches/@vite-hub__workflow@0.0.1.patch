@@ -1,0 +1,114 @@
+diff --git a/dist/runtime/cloudflare-runner.d.ts b/dist/runtime/cloudflare-runner.d.ts
+index b8a7d548fa798872fab4074920fde4d8a48a67bd..c665c8e31e7fa6f7315bceec2ac3cc8640fed8dd 100644
+--- a/dist/runtime/cloudflare-runner.d.ts
++++ b/dist/runtime/cloudflare-runner.d.ts
+@@ -9,6 +9,9 @@ interface CloudflareWorkflowEvent {
+ }
+ interface RunCloudflareWorkflowOptions {
+   config: false | ResolvedWorkflowOptions | undefined;
++  createNonRetryableError?: (error: Error & {
++    isRetryable: false;
++  }) => Error;
+   env: CloudflareWorkerEnv;
+   event: CloudflareWorkflowEvent;
+   name: string;
+@@ -17,6 +20,7 @@ interface RunCloudflareWorkflowOptions {
+ }
+ declare function runCloudflareWorkflow({
+   config,
++  createNonRetryableError,
+   env,
+   event,
+   name,
+diff --git a/dist/runtime/cloudflare-runner.js b/dist/runtime/cloudflare-runner.js
+index 31d2046594131d1a08143a44abcaf04e6531d97d..030361463cda094cc7d9d71bbcb401c2b08413cf 100644
+--- a/dist/runtime/cloudflare-runner.js
++++ b/dist/runtime/cloudflare-runner.js
+@@ -2,22 +2,28 @@ import { i as runWithActiveCloudflareEnv } from "../cloudflare-env-58eI9rLo.js";
+ import { runWorkflowHandler } from "./execute.js";
+ import { loadWorkflowDefinition, runWithWorkflowRuntimeEvent, setWorkflowRuntimeConfig, setWorkflowRuntimeRegistry } from "./state.js";
+ //#region src/runtime/cloudflare-runner.ts
+-async function runCloudflareWorkflow({ config, env, event, name, registry, step }) {
++async function runCloudflareWorkflow({ config, createNonRetryableError, env, event, name, registry, step }) {
+ 	setWorkflowRuntimeConfig(config);
+ 	setWorkflowRuntimeRegistry(registry);
++	globalThis.__env__ = env;
+ 	return await runWithActiveCloudflareEnv(env, async () => {
+ 		const definition = await loadWorkflowDefinition(name);
+ 		if (!definition) throw new Error(`Missing workflow definition: ${name}`);
+-		return await runWithWorkflowRuntimeEvent({
+-			env,
+-			step
+-		}, () => runWorkflowHandler({
+-			id: event?.instanceId || event?.id,
+-			name,
+-			payload: event?.payload,
+-			provider: "cloudflare",
+-			step
+-		}, definition));
++		try {
++			return await runWithWorkflowRuntimeEvent({
++				env,
++				step
++			}, () => runWorkflowHandler({
++				id: event?.instanceId || event?.id,
++				name,
++				payload: event?.payload,
++				provider: "cloudflare",
++				step
++			}, definition));
++		} catch (error) {
++			if (createNonRetryableError && error instanceof Error && error.isRetryable === false) throw createNonRetryableError(error);
++			throw error;
++		}
+ 	});
+ }
+ //#endregion
+diff --git a/dist/vite.js b/dist/vite.js
+index e81f7643b7ec345c0bcf89ca0181eb8e7aff02b6..890c564faec1b6ab902b9b3e1bcce53f3d39fe7c 100644
+--- a/dist/vite.js
++++ b/dist/vite.js
+@@ -1892,7 +1892,7 @@ function renderAgentWorkflowRegistryEntry(registryFile, definition) {
+ 		`    const cached = registryEntryCache.get(${JSON.stringify(definition.name)})`,
+ 		"    if (cached) return cached",
+ 		`    const loaded = await ${renderRegistryImport(registryFile, definition.handler)}`,
+-		`    const agent = agentWithColocatedHome(agentWithColocatedSkills(workspaceAgentWithSourceRoot("default" in loaded ? loaded.default : loaded, ${JSON.stringify(resolveAgentWorkspaceSourceRoot(definition.handler))}, ${JSON.stringify(readAgentInstructions(definition.handler))}), ${JSON.stringify(readAgentSkills(definition.handler))}), ${JSON.stringify(readAgentHome(definition.handler))})`,
++		`    const agent = agentWithColocatedHome(agentWithColocatedSkills(workspaceAgentWithSourceRoot(agentWithColocatedInstructions("default" in loaded ? loaded.default : loaded, ${JSON.stringify(readAgentInstructions(definition.handler))}), ${JSON.stringify(resolveAgentWorkspaceSourceRoot(definition.handler))}, ${JSON.stringify(readAgentInstructions(definition.handler))}), ${JSON.stringify(readAgentSkills(definition.handler))}), ${JSON.stringify(readAgentHome(definition.handler))})`,
+ 		`    const entry = { handler: async (context) => await runAgentWorkflowDefinition(agent, { ...context, payload: { ...context.payload, agentIdentity: context.payload?.agentIdentity || { name: ${JSON.stringify(definition.agentIdentity || definition.name)} } } }, runAgentInline) }`,
+ 		`    registryEntryCache.set(${JSON.stringify(definition.name)}, entry)`,
+ 		"    return entry",
+@@ -1940,7 +1940,7 @@ function createWorkflowRegistryContents(registryFile, definitions, importBases =
+ 	const workspaceDependencyRuntimeImports = importBases.workspace ? importBases.workspaceDependencies : void 0;
+ 	const imports = [
+ 		...needsAgentRuntime ? [
+-			`import { runAgentInline } from ${JSON.stringify(agentImportBase)}`,
++			`import { agentWithColocatedInstructions, runAgentInline } from ${JSON.stringify(agentImportBase)}`,
+ 			`import { agentWithColocatedHome, agentWithColocatedSkills, runAgentWorkflowDefinition, workspaceAgentWithSourceRoot } from ${JSON.stringify(`${agentImportBase}/runtime/workflow`)}`,
+ 			...installAgentWorkflowRuntime ? [`import { setAgentWorkflowRuntimeLoaders } from ${JSON.stringify(`${agentImportBase}/server/internal`)}`] : []
+ 		] : [],
+@@ -2007,12 +2007,15 @@ function renderProviderEntry(spec, entryFile, userAppEntry, serializedWorkflowCo
+ 		`import workflowRegistry from ${JSON.stringify(`./${generatedRegistryFileName}`)}`,
+ 		...installVercelWorkflowRuntime ? [`import * as workflowApi from "workflow/api"`, `import * as workflowRuntime from "workflow/runtime"`] : []
+ 	];
+-	if (spec.name === "cloudflare") imports.push(`import { runCloudflareWorkflow } from ${JSON.stringify(createImportPath(entryFile, resolveRuntimeModule("runtime/cloudflare-runner")))}`);
++	if (spec.name === "cloudflare") {
++		imports.push(`import { runCloudflareWorkflow } from ${JSON.stringify(createImportPath(entryFile, resolveRuntimeModule("runtime/cloudflare-runner")))}`);
++		imports.push(`import { NonRetryableError } from "cloudflare:workflows"`);
++	}
+ 	if (userAppEntry) imports.push(`import workflowApp from ${JSON.stringify(createImportPath(entryFile, userAppEntry))}`);
+ 	const cloudflareDispatcher = spec.name === "cloudflare" ? [
+ 		"",
+ 		"export async function runViteHubWorkflowDefinition(name, env, event, step) {",
+-		"  return await runCloudflareWorkflow({ config: workflowConfig, env: env || {}, event, name, registry: workflowRegistry, step })",
++		"  return await runCloudflareWorkflow({ config: workflowConfig, createNonRetryableError: error => new NonRetryableError(error.message, error.name), env: env || {}, event, name, registry: workflowRegistry, step })",
+ 		"}"
+ 	] : [];
+ 	return [
+@@ -2090,6 +2093,7 @@ function createCloudflareOutput(rootDir, artifacts, providerImportAliases) {
+ 				"@vercel/queue",
+ 				"@vercel/sandbox",
+ 				"cloudflare:workers",
++				"cloudflare:workflows",
+ 				...nodeBuiltinExternals,
+ 				"workflow",
+ 				"workflow/api",
