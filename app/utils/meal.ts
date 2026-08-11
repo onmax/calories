@@ -43,3 +43,19 @@ export function getMealPhotoUrl(meal: Meal): string | undefined {
     ? new URL(meal.photoUrl, "https://vitehub-calories.maximogarciamtnez.workers.dev").toString()
     : meal.photoUrl;
 }
+
+export function parseUsageCostUsd(value?: string): number | undefined {
+  const match = value?.replaceAll(",", "").match(/\$(\d+(?:\.\d+)?)/);
+  if (!match) return undefined;
+  const cost = Number(match[1]);
+  return Number.isFinite(cost) ? cost : undefined;
+}
+
+export function formatUsageCostUsd(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: value > 0 && value < 0.01 ? 6 : 2,
+    minimumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
+    style: "currency",
+  }).format(value);
+}

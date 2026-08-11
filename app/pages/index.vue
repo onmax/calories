@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { getMealTitle, type Meal, type MealsPage } from "~/utils/meal";
+import {
+  formatUsageCostUsd,
+  getMealTitle,
+  parseUsageCostUsd,
+  type Meal,
+  type MealsPage,
+} from "~/utils/meal";
 
 const { data, error: initialError } = await useFetch<MealsPage>("/api/meals");
 const meals = ref<Meal[]>(data.value?.meals ?? []);
 const nextCursor = ref(data.value?.nextCursor);
-const selectedId = ref<string>();
 const expandedDays = ref(new Set<string>());
 const loading = ref(false);
 const loadError = ref(initialError.value?.message);
@@ -35,16 +40,43 @@ function dayLabel(value: string): string {
 }
 
 const days = computed(() => {
-  const groups = new Map<string, { calories: number; date: string; meals: Meal[]; protein: number }>();
+  const groups = new Map<
+    string,
+    {
+      calories: number;
+      cost: number;
+      date: string;
+      hasCost: boolean;
+      meals: Meal[];
+      protein: number;
+    }
+  >();
   for (const meal of meals.value) {
     const key = dayKey(meal.createdAt);
-    const day = groups.get(key) ?? { calories: 0, date: meal.createdAt, meals: [], protein: 0 };
+    const day = groups.get(key) ?? {
+      calories: 0,
+      cost: 0,
+      date: meal.createdAt,
+      hasCost: false,
+      meals: [],
+      protein: 0,
+    };
+    const cost = parseUsageCostUsd(meal.usageCost);
     day.meals.push(meal);
     day.calories += meal.totalCalories ?? 0;
     day.protein += meal.totalProtein ?? meal.items.reduce((sum, item) => sum + (item.protein ?? 0), 0);
+    if (cost !== undefined) {
+      day.cost += cost;
+      day.hasCost = true;
+    }
     groups.set(key, day);
   }
-  return [...groups.entries()].map(([key, day]) => ({ ...day, key, label: dayLabel(day.date) }));
+  return [...groups.entries()].map(([key, day]) => ({
+    ...day,
+    cost: day.hasCost ? day.cost : undefined,
+    key,
+    label: dayLabel(day.date),
+  }));
 });
 
 async function loadMore() {
@@ -77,7 +109,6 @@ function toggleDay(key: string) {
   const next = new Set(expandedDays.value);
   if (next.has(key)) {
     next.delete(key);
-    selectedId.value = undefined;
   } else {
     next.add(key);
   }
@@ -113,17 +144,37 @@ onBeforeUnmount(() => observer?.disconnect());
       @settings="settingsOpen = !settingsOpen"
     />
 
-    <section v-if="settingsOpen" id="goal-editor" class="goal-editor" aria-label="Daily goals">
+    <form
+      v-if="settingsOpen"
+      id="goal-editor"
+      class="goal-editor"
+      aria-label="Daily goals"
+      @submit.prevent="saveGoals"
+    >
       <div>
         <label for="calorie-goal">Calories</label>
-        <UInputNumber id="calorie-goal" v-model="calorieGoal" :min="50" :step="50" />
+        <input
+          id="calorie-goal"
+          v-model.number="calorieGoal"
+          inputmode="numeric"
+          min="50"
+          step="50"
+          type="number"
+        />
       </div>
       <div>
         <label for="protein-goal">Protein (g)</label>
-        <UInputNumber id="protein-goal" v-model="proteinGoal" :min="5" :step="5" />
+        <input
+          id="protein-goal"
+          v-model.number="proteinGoal"
+          inputmode="numeric"
+          min="5"
+          step="5"
+          type="number"
+        />
       </div>
-      <UButton color="neutral" @click="saveGoals">Save goals</UButton>
-    </section>
+      <button class="goal-save" type="submit">Save</button>
+    </form>
 
     <div class="daily-log">
       <section
@@ -132,68 +183,68 @@ onBeforeUnmount(() => observer?.disconnect());
         class="day-section"
         :class="{ 'is-open': expandedDays.has(day.key) }"
       >
-        <div class="day-summary">
-          <header class="day-heading">
-            <span>{{ day.label }}</span>
-            <strong>{{ day.meals.length }} {{ day.meals.length === 1 ? "meal" : "meals" }}</strong>
-          </header>
-
+        <header class="day-heading">
+          <h2>{{ day.label }}</h2>
           <button
-            class="day-overview"
+            class="day-toggle"
             type="button"
             :aria-expanded="expandedDays.has(day.key)"
             :aria-label="`${expandedDays.has(day.key) ? 'Hide' : 'Show'} ${day.meals.length} meals from ${day.label}`"
             @click="toggleDay(day.key)"
           >
-            <span class="day-progress">
+            {{ day.meals.length }} {{ day.meals.length === 1 ? "meal" : "meals" }}
+            <UIcon
+              class="day-chevron"
+              :class="{ 'is-expanded': expandedDays.has(day.key) }"
+              name="i-lucide-chevron-down"
+              aria-hidden="true"
+            />
+          </button>
+        </header>
+
+        <div class="day-layout">
+          <div class="day-progress">
+            <div class="day-ring">
               <NutritionRings
                 :calorie-goal="calorieGoal"
                 :calories="day.calories"
                 :protein="day.protein"
                 :protein-goal="proteinGoal"
               />
-              <span class="day-metrics tabular-nums">
-                <span>
-                  <i class="calorie-dot" />
-                  <span><small>Calories</small><strong>{{ day.calories.toLocaleString() }} <b>/ {{ calorieGoal.toLocaleString() }} kcal</b></strong></span>
-                </span>
-                <span>
-                  <i class="protein-dot" />
-                  <span><small>Protein</small><strong>{{ day.protein }} <b>/ {{ proteinGoal }} g</b></strong></span>
-                </span>
+            </div>
+
+            <dl class="day-metrics tabular-nums">
+              <div>
+                <dt><i class="calorie-dot" />Calories</dt>
+                <dd><strong>{{ day.calories.toLocaleString() }}</strong> / {{ calorieGoal.toLocaleString() }} kcal</dd>
+              </div>
+              <div>
+                <dt><i class="protein-dot" />Protein</dt>
+                <dd><strong>{{ day.protein }}</strong> / {{ proteinGoal }} g</dd>
+              </div>
+              <div v-if="day.cost !== undefined" class="day-cost">
+                <dt>AI cost</dt>
+                <dd>{{ formatUsageCostUsd(day.cost) }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div v-if="!expandedDays.has(day.key)" class="meal-preview">
+            <div v-for="meal in day.meals.slice(0, 3)" :key="meal.id" class="meal-preview-item">
+              <span class="meal-preview-photo"><MealPhoto :meal="meal" /></span>
+              <span class="meal-preview-copy">
+                <strong>{{ getMealTitle(meal) }}</strong>
+                <small class="tabular-nums">
+                  {{ meal.totalCalories ?? 0 }} kcal · {{ meal.totalProtein ?? 0 }} g protein
+                </small>
               </span>
-            </span>
+            </div>
+            <span v-if="day.meals.length > 3" class="meal-preview-more">+{{ day.meals.length - 3 }} more</span>
+          </div>
 
-            <span class="meal-preview">
-              <span v-for="meal in day.meals.slice(0, 3)" :key="meal.id" class="meal-preview-item">
-                <span class="meal-preview-photo"><MealPhoto :meal="meal" /></span>
-                <span class="meal-preview-copy">
-                  <strong>{{ getMealTitle(meal) }}</strong>
-                  <small class="tabular-nums">{{ meal.totalCalories ?? 0 }} kcal · {{ meal.totalProtein ?? 0 }} g</small>
-                </span>
-              </span>
-            </span>
-
-            <span class="day-disclosure">
-              {{ expandedDays.has(day.key) ? "Hide meals" : "View meals" }}
-              <UIcon
-                class="day-chevron"
-                :class="{ 'is-expanded': expandedDays.has(day.key) }"
-                name="i-lucide-chevron-down"
-                aria-hidden="true"
-              />
-            </span>
-          </button>
-        </div>
-
-        <div v-if="expandedDays.has(day.key)" class="meal-list">
-          <MealAnalysis
-            v-for="meal in day.meals"
-            :key="meal.id"
-            :expanded="selectedId === meal.id"
-            :meal="meal"
-            @toggle="selectedId = selectedId === meal.id ? undefined : meal.id"
-          />
+          <div v-else class="meal-list">
+            <MealAnalysis v-for="meal in day.meals" :key="meal.id" :meal="meal" />
+          </div>
         </div>
       </section>
 
