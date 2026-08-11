@@ -93,28 +93,23 @@ img {
 .calories-app {
   display: flow-root;
   width: 100%;
-  max-width: 68rem;
+  max-width: 46rem;
   min-height: 100dvh;
   margin-inline: auto;
   padding-bottom: 3rem;
 }
 
 .app-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.875rem;
   border-bottom: 1px solid var(--line-soft);
-  background: color-mix(in oklch, var(--bg) 92%, transparent);
-  padding: 0.625rem var(--gutter);
-  backdrop-filter: blur(16px);
+  background: var(--surface);
+  padding: 1rem var(--gutter) 0.875rem;
 }
 
-.brand-lockup,
-.header-actions {
+.brand-lockup {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -161,21 +156,16 @@ img {
   white-space: nowrap;
 }
 
-.header-actions {
-  gap: 0.5rem;
-}
-
 .goal-summary {
   display: grid;
-  min-height: 3rem;
+  grid-column: 1 / -1;
+  width: 100%;
   grid-template-columns: 1fr;
-  align-content: center;
-  align-items: center;
-  column-gap: 0.5rem;
-  border: 0;
-  border-radius: 0.625rem;
+  gap: 0.125rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.875rem;
   background: transparent;
-  padding: 0.25rem 0.375rem;
+  padding: 0.625rem 0.75rem;
   text-align: left;
   cursor: pointer;
 }
@@ -188,7 +178,7 @@ img {
 .goal-summary > span {
   grid-column: 1;
   color: var(--text-faint);
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   line-height: 1;
@@ -200,7 +190,7 @@ img {
   align-items: center;
   gap: 0.3rem;
   color: var(--text-dim);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
@@ -272,23 +262,31 @@ img {
 
 .daily-log {
   display: grid;
+  gap: 0.875rem;
+  padding: 0.875rem var(--gutter);
 }
 
 .day-section {
   display: grid;
-  border-bottom: 1px solid var(--line-soft);
-  padding-block: 1rem 1.25rem;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: 0 0.5rem 1.5rem oklch(0.3 0.04 255 / 0.05);
+}
+
+.dark .day-section {
+  box-shadow: none;
 }
 
 .day-summary {
   display: grid;
   min-width: 0;
-  justify-items: center;
-  gap: 0.875rem;
-  padding-inline: var(--gutter);
+  gap: 0.75rem;
+  padding: 0.875rem;
 }
 
-.day-summary > header {
+.day-heading {
   display: flex;
   width: 100%;
   align-items: baseline;
@@ -296,14 +294,14 @@ img {
   gap: 0.75rem;
 }
 
-.day-summary > header span {
+.day-heading span {
   color: var(--text);
   font-size: 1.125rem;
   font-weight: 680;
   letter-spacing: -0.02em;
 }
 
-.day-summary > header strong {
+.day-heading strong {
   color: var(--text-faint);
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
@@ -312,22 +310,16 @@ img {
 }
 
 .nutrition-rings {
-  --ring-size: min(46vw, 10.5rem);
+  --ring-size: 7.25rem;
   display: grid;
-  width: 100%;
-  justify-items: center;
+  width: var(--ring-size);
+  flex: none;
   margin: 0;
 }
 
-.nutrition-rings svg,
-.ring-values {
-  grid-area: 1 / 1;
-  width: var(--ring-size);
-}
-
 .nutrition-rings svg {
+  width: var(--ring-size);
   height: auto;
-  transform: rotate(-90deg);
 }
 
 .ring-track,
@@ -366,113 +358,175 @@ img {
   stroke: var(--overflow-protein);
 }
 
-.ring-values {
-  display: grid;
-  height: var(--ring-size);
-  place-content: center;
-  justify-items: center;
-  gap: 0.0625rem;
-  text-align: center;
+.ring-calorie-value,
+.ring-protein-value {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-anchor: middle;
 }
 
-.ring-values strong {
+.ring-calorie-value {
   color: var(--calories);
-  font-size: 1.55rem;
-  font-weight: 680;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  fill: var(--calories);
+  font-size: 1.35rem;
+  letter-spacing: -0.06em;
 }
 
-.ring-values span,
-.ring-values small {
-  color: var(--text-faint);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ring-values b {
-  margin-top: 0.2rem;
+.ring-protein-value {
   color: var(--protein);
-  font-size: 0.95rem;
-  font-weight: 650;
-  line-height: 1;
+  fill: var(--protein);
+  font-size: 0.875rem;
 }
 
-.meal-strip {
+.day-overview {
   display: grid;
   width: 100%;
-  min-height: 4rem;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  min-width: 0;
   gap: 0.75rem;
-  border: 1px solid var(--line-soft);
-  border-radius: 0.875rem;
-  background: var(--surface);
-  padding: 0.5rem 0.75rem 0.5rem 0.5rem;
-  box-shadow: 0 0.25rem 1rem oklch(0.3 0.04 255 / 0.06);
+  border: 0;
+  background: transparent;
+  padding: 0;
   text-align: left;
   cursor: pointer;
 }
 
-.dark .meal-strip {
-  box-shadow: none;
-}
-
-.meal-strip-photos {
-  display: flex;
-  min-width: 3rem;
-  align-items: center;
-}
-
-.meal-strip-photo,
-.meal-strip-more {
+.day-progress {
   display: grid;
-  width: 3rem;
-  aspect-ratio: 1;
-  overflow: hidden;
-  flex: none;
-  place-items: center;
-  border: 2px solid var(--surface);
-  border-radius: 0.625rem;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.875rem;
+  border-radius: 0.875rem;
   background: var(--surface-raised);
+  padding: 0.625rem 0.75rem 0.625rem 0.5rem;
+}
+
+.day-metrics {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.day-metrics > span {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.day-metrics i {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}
+
+.day-metrics > span > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.0625rem;
+}
+
+.day-metrics small {
   color: var(--text-faint);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.meal-strip-photo + .meal-strip-photo,
-.meal-strip-more {
-  margin-left: -0.75rem;
+.day-metrics strong {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.meal-strip-photo img {
+.day-metrics b {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  font-weight: 550;
+}
+
+.meal-preview {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.meal-preview-item {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.75rem;
+  background: var(--bg);
+}
+
+.meal-preview-photo {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  place-items: center;
+  background: var(--surface-raised);
+}
+
+.meal-preview-photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.meal-strip-more {
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.meal-strip-copy {
+.meal-preview-copy {
   display: grid;
   min-width: 0;
-  gap: 0.125rem;
+  gap: 0.1rem;
+  padding: 0.4375rem 0.5rem 0.5rem;
 }
 
-.meal-strip-copy strong {
+.meal-preview-copy strong,
+.meal-preview-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meal-preview-copy strong {
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 650;
 }
 
-.meal-strip-copy span {
-  overflow: hidden;
+.meal-preview-copy small {
   color: var(--text-faint);
+  font-size: 0.65rem;
+}
+
+.meal-photo-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: linear-gradient(145deg, color-mix(in oklch, var(--protein) 12%, var(--surface)), color-mix(in oklch, var(--calories) 14%, var(--surface)));
+  color: var(--text-dim);
+  font-size: 1.25rem;
+  font-weight: 720;
+}
+
+.day-disclosure {
+  display: flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-dim);
   font-size: 0.75rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 650;
+  padding-top: 0.5rem;
 }
 
 .day-chevron,
@@ -491,14 +545,13 @@ img {
 .meal-list {
   display: grid;
   min-width: 0;
-  margin-top: 1rem;
   border-top: 1px solid var(--line-soft);
 }
 
 .meal-entry {
   min-width: 0;
   border-bottom: 1px solid var(--line-soft);
-  background: var(--bg);
+  background: var(--surface);
 }
 
 .meal-entry.is-expanded {
@@ -537,6 +590,10 @@ img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.meal-photo .meal-photo-fallback {
+  font-size: 1rem;
 }
 
 .meal-copy {
@@ -737,14 +794,6 @@ img {
   .brand-lockup > div > span {
     display: none;
   }
-
-  .meal-strip-copy {
-    display: none;
-  }
-
-  .meal-strip {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
 }
 
 @media (max-width: 25rem) {
@@ -797,60 +846,12 @@ img {
     --gutter: 1.5rem;
   }
 
-  .app-header {
-    padding-block: 0.75rem;
-  }
-
-  .day-section.is-open {
-    grid-template-columns: 18rem minmax(0, 1fr);
-    align-items: start;
-    gap: 2rem;
-    padding-block: 2rem;
-  }
-
-  .day-section:not(.is-open) .day-summary {
-    width: min(100%, 30rem);
-    justify-self: start;
-  }
-
-  .day-section.is-open .day-summary {
-    position: sticky;
-    top: 5.75rem;
-    justify-items: start;
-    padding-right: 0;
-  }
-
-  .day-section.is-open .day-summary > header {
-    display: grid;
-    justify-items: start;
-    gap: 0.125rem;
-  }
-
-  .day-section.is-open .nutrition-rings {
-    --ring-size: 10.5rem;
-    justify-items: start;
-  }
-
   .meal-list {
-    margin-top: 0;
     border-bottom: 1px solid var(--line-soft);
-    border-top: 0;
-  }
-
-  .meal-list .meal-entry:first-child {
-    border-top: 1px solid var(--line-soft);
-  }
-
-  .meal-trigger {
-    padding-inline: 0 var(--gutter);
   }
 
   .meal-photo {
     width: 4rem;
-  }
-
-  .meal-detail {
-    padding-inline: 0 var(--gutter);
   }
 
   .food-list {

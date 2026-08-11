@@ -132,43 +132,59 @@ onBeforeUnmount(() => observer?.disconnect());
         class="day-section"
         :class="{ 'is-open': expandedDays.has(day.key) }"
       >
-        <aside class="day-summary">
-          <header>
+        <div class="day-summary">
+          <header class="day-heading">
             <span>{{ day.label }}</span>
             <strong>{{ day.meals.length }} {{ day.meals.length === 1 ? "meal" : "meals" }}</strong>
           </header>
-          <NutritionRings
-            :calorie-goal="calorieGoal"
-            :calories="day.calories"
-            :protein="day.protein"
-            :protein-goal="proteinGoal"
-          />
 
           <button
-            class="meal-strip"
+            class="day-overview"
             type="button"
             :aria-expanded="expandedDays.has(day.key)"
             :aria-label="`${expandedDays.has(day.key) ? 'Hide' : 'Show'} ${day.meals.length} meals from ${day.label}`"
             @click="toggleDay(day.key)"
           >
-            <span class="meal-strip-photos" aria-hidden="true">
-              <span v-for="meal in day.meals.slice(0, 4)" :key="meal.id" class="meal-strip-photo">
-                <MealPhoto :meal="meal" />
+            <span class="day-progress">
+              <NutritionRings
+                :calorie-goal="calorieGoal"
+                :calories="day.calories"
+                :protein="day.protein"
+                :protein-goal="proteinGoal"
+              />
+              <span class="day-metrics tabular-nums">
+                <span>
+                  <i class="calorie-dot" />
+                  <span><small>Calories</small><strong>{{ day.calories.toLocaleString() }} <b>/ {{ calorieGoal.toLocaleString() }} kcal</b></strong></span>
+                </span>
+                <span>
+                  <i class="protein-dot" />
+                  <span><small>Protein</small><strong>{{ day.protein }} <b>/ {{ proteinGoal }} g</b></strong></span>
+                </span>
               </span>
-              <span v-if="day.meals.length > 4" class="meal-strip-more">+{{ day.meals.length - 4 }}</span>
             </span>
-            <span class="meal-strip-copy">
-              <strong>{{ expandedDays.has(day.key) ? "Hide meals" : "View meals" }}</strong>
-              <span>{{ day.meals.map(getMealTitle).slice(0, 2).join(" · ") }}</span>
+
+            <span class="meal-preview">
+              <span v-for="meal in day.meals.slice(0, 3)" :key="meal.id" class="meal-preview-item">
+                <span class="meal-preview-photo"><MealPhoto :meal="meal" /></span>
+                <span class="meal-preview-copy">
+                  <strong>{{ getMealTitle(meal) }}</strong>
+                  <small class="tabular-nums">{{ meal.totalCalories ?? 0 }} kcal · {{ meal.totalProtein ?? 0 }} g</small>
+                </span>
+              </span>
             </span>
-            <UIcon
-              class="day-chevron"
-              :class="{ 'is-expanded': expandedDays.has(day.key) }"
-              name="i-lucide-chevron-down"
-              aria-hidden="true"
-            />
+
+            <span class="day-disclosure">
+              {{ expandedDays.has(day.key) ? "Hide meals" : "View meals" }}
+              <UIcon
+                class="day-chevron"
+                :class="{ 'is-expanded': expandedDays.has(day.key) }"
+                name="i-lucide-chevron-down"
+                aria-hidden="true"
+              />
+            </span>
           </button>
-        </aside>
+        </div>
 
         <div v-if="expandedDays.has(day.key)" class="meal-list">
           <MealAnalysis

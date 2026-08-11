@@ -20,54 +20,52 @@ const dashOffset = (radius: number, value: number) => circumference(radius) * (1
     :aria-label="`${calories} of ${calorieGoal} calories and ${protein} of ${proteinGoal} grams of protein`"
   >
     <svg viewBox="0 0 160 160" role="img" aria-hidden="true">
-      <g class="ring-layer calories-ring">
-        <circle class="ring-track" cx="80" cy="80" :r="outerRadius" />
-        <circle
-          class="ring-progress"
-          cx="80"
-          cy="80"
-          :r="outerRadius"
-          :stroke-dasharray="circumference(outerRadius)"
-          :stroke-dashoffset="dashOffset(outerRadius, progress(calories, calorieGoal))"
-        />
-        <circle
-          v-if="calories > calorieGoal"
-          class="ring-overflow"
-          cx="80"
-          cy="80"
-          r="71"
-          :stroke-dasharray="circumference(71)"
-          :stroke-dashoffset="dashOffset(71, overflow(calories, calorieGoal))"
-        />
+      <g transform="rotate(-90 80 80)">
+        <g class="ring-layer calories-ring">
+          <circle class="ring-track" cx="80" cy="80" :r="outerRadius" />
+          <circle
+            class="ring-progress"
+            cx="80"
+            cy="80"
+            :r="outerRadius"
+            :stroke-dasharray="circumference(outerRadius)"
+            :stroke-dashoffset="dashOffset(outerRadius, progress(calories, calorieGoal))"
+          />
+          <circle
+            v-if="calories > calorieGoal"
+            class="ring-overflow"
+            cx="80"
+            cy="80"
+            r="71"
+            :stroke-dasharray="circumference(71)"
+            :stroke-dashoffset="dashOffset(71, overflow(calories, calorieGoal))"
+          />
+        </g>
+
+        <g class="ring-layer protein-ring">
+          <circle class="ring-track" cx="80" cy="80" :r="innerRadius" />
+          <circle
+            class="ring-progress"
+            cx="80"
+            cy="80"
+            :r="innerRadius"
+            :stroke-dasharray="circumference(innerRadius)"
+            :stroke-dashoffset="dashOffset(innerRadius, progress(protein, proteinGoal))"
+          />
+          <circle
+            v-if="protein > proteinGoal"
+            class="ring-overflow"
+            cx="80"
+            cy="80"
+            r="51"
+            :stroke-dasharray="circumference(51)"
+            :stroke-dashoffset="dashOffset(51, overflow(protein, proteinGoal))"
+          />
+        </g>
       </g>
 
-      <g class="ring-layer protein-ring">
-        <circle class="ring-track" cx="80" cy="80" :r="innerRadius" />
-        <circle
-          class="ring-progress"
-          cx="80"
-          cy="80"
-          :r="innerRadius"
-          :stroke-dasharray="circumference(innerRadius)"
-          :stroke-dashoffset="dashOffset(innerRadius, progress(protein, proteinGoal))"
-        />
-        <circle
-          v-if="protein > proteinGoal"
-          class="ring-overflow"
-          cx="80"
-          cy="80"
-          r="51"
-          :stroke-dasharray="circumference(51)"
-          :stroke-dashoffset="dashOffset(51, overflow(protein, proteinGoal))"
-        />
-      </g>
+      <text class="ring-calorie-value" x="80" y="76">{{ calories.toLocaleString() }}</text>
+      <text class="ring-protein-value" x="80" y="101">{{ protein }}g</text>
     </svg>
-
-    <figcaption class="ring-values">
-      <strong class="tabular-nums">{{ calories.toLocaleString() }}</strong>
-      <span>kcal</span>
-      <b class="tabular-nums">{{ protein }} g</b>
-      <small>protein</small>
-    </figcaption>
   </figure>
 </template>
