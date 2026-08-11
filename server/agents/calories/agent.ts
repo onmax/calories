@@ -1,8 +1,8 @@
-import { createGateway } from "@ai-sdk/gateway";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { eq } from "drizzle-orm";
 import * as v from "valibot";
 import { currentInputAttachments, defineAgent, resolveAttachmentData } from "vite-hub/agent";
-import { cost, db, transcribe } from "vite-hub/agent/capabilities";
+import { cost, db } from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
 import { blob } from "vite-hub/blob";
 import { renderTemplate } from "#vitehub/templates";
@@ -24,11 +24,6 @@ function dashboardUrl(event: { runtime?: { request?: Request } }) {
 export default defineAgent({
   capabilities: [
     db({ mode: "write" }),
-    transcribe(() => ({
-      model: createGateway({
-        apiKey: useServerEnv().aiGateway.apiKey,
-      }).transcriptionModel("openai/gpt-4o-transcribe"),
-    })),
     cost(),
   ],
   channels: {
@@ -48,14 +43,16 @@ export default defineAgent({
   },
   driver: {
     maxRetries: 0,
-    model: () => ({
-      id: "zai/glm-5v-turbo",
-      apiKey: useServerEnv().aiGateway.apiKey,
+    model: () => createOpenRouter({
+      apiKey: useServerEnv().openrouter.apiKey,
+    })("z-ai/glm-5v-turbo", {
+      usage: { include: true },
     }),
     output: { schema: caloriesOutput },
   },
   hooks: {
     "agent:error"(event) {
+      console.error("[calories] Agent invocation failed", event.error);
       return event.reply("Sorry, I couldn't process that message.");
     },
     async "agent:finish"(event) {

@@ -43,15 +43,15 @@ export default defineNuxtConfig({
   vite: {
     env: {
       server: {
-        aiGateway: {
-          apiKey: env({
-            source: env.source("VERCEL_AI_GATEWAY_TOKEN"),
-          }),
-        },
         calories: {
           timeZone: env({
             optional: true,
             source: env.source("CALORIES_TIME_ZONE"),
+          }),
+        },
+        openrouter: {
+          apiKey: env({
+            source: env.source("OPENROUTER_API_KEY"),
           }),
         },
         telegram: {

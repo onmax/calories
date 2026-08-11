@@ -8,10 +8,10 @@ Production: <https://vitehub-calories.maximogarciamtnez.workers.dev>
 
 - Nuxt nightly, Vue, and Nuxt UI render the read-only dashboard as a client-side app.
 - Nitro v3 emits the Cloudflare Worker and serves both the UI and API.
-- ViteHub Agent connects Telegram to a model with database-write, blob, transcription, and usage-cost Capabilities, then renders the structured result through Chat SDK.
+- ViteHub Agent connects Telegram to a model with database-write, blob, and usage-cost Capabilities, then renders the structured result through Chat SDK.
 - ViteHub Blob stores original photos privately in Cloudflare R2.
 - ViteHub Database uses generated local artifacts during development and a Cloudflare D1 binding in production.
-- Vercel AI SDK sends images to Vercel AI Gateway using `AI_GATEWAY_API_KEY`.
+- Vercel AI SDK sends images to GLM 5V Turbo through OpenRouter using `OPENROUTER_API_KEY`.
 
 ## Input lifecycle
 
@@ -19,7 +19,7 @@ Production: <https://vitehub-calories.maximogarciamtnez.workers.dev>
 Telegram message
   → allow numeric Telegram user ID
   → show a temporary Chat SDK fallback
-  → invoke the Agent through Vercel AI Gateway
+  → invoke the Agent through OpenRouter
   → use ViteHub Capabilities to read or update D1 and R2
   → replace the fallback with the result, usage cost, and dashboard URL
 ```
@@ -53,7 +53,7 @@ vp run db:generate
 vp run dev
 ```
 
-The `.env` file needs a scoped Cloudflare D1 token plus the existing Gateway and Telegram tokens. `TELEGRAM_ALLOWED_USER_ID` is the numeric `message.from.id`, not a username or chat handle. Remote D1 migrations run only through the explicit deployment command below.
+The `.env` file needs a scoped Cloudflare D1 token plus the existing OpenRouter and Telegram tokens. `TELEGRAM_ALLOWED_USER_ID` is the numeric `message.from.id`, not a username or chat handle. Remote D1 migrations run only through the explicit deployment command below.
 
 ## Cloudflare deployment
 
