@@ -34,6 +34,5 @@ export const meals = sqliteTable(
 );
 
 export default defineDatabase({
-  cloudflare: { databaseName: "vitehub-calories" },
   schema: { meals },
 });

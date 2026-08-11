@@ -18,7 +18,10 @@ export default defineNuxtConfig({
     },
     database: {
       driver: "d1",
-      databaseId: env({ source: env.source("CLOUDFLARE_D1_DATABASE_ID") }),
+      databaseId: env({
+        default: "d3907c3b-de95-4bea-b7a8-1905b7f57d7a",
+        source: env.source("CLOUDFLARE_D1_DATABASE_ID"),
+      }),
       databaseName: "vitehub-calories",
     },
   },
