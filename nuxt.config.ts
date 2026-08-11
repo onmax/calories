@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { env, type EnvViteUserConfig } from "vite-hub/env";
 
 export default defineNuxtConfig({
@@ -41,6 +42,10 @@ export default defineNuxtConfig({
       config.handlers = config.handlers?.filter(
         (handler) => handler.route !== "/api/_nuxt_icon/:collection",
       );
+      const database = config.cloudflare?.wrangler?.d1_databases?.find(
+        (binding) => binding.binding === "DB",
+      );
+      if (database) database.migrations_dir = resolve("server/databases/migrations");
     },
   },
   vite: {
