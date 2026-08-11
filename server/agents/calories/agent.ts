@@ -1,9 +1,10 @@
 import { createGateway } from "@ai-sdk/gateway";
 import { eq } from "drizzle-orm";
 import * as v from "valibot";
-import { defineAgent } from "vite-hub/agent";
-import { blob, cost, db, transcribe } from "vite-hub/agent/capabilities";
+import { currentInputAttachments, defineAgent, resolveAttachmentData } from "vite-hub/agent";
+import { cost, db, transcribe } from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
+import { blob } from "vite-hub/blob";
 import { renderTemplate } from "#vitehub/templates";
 import { useServerEnv } from "#vitehub/env/server";
 import database, * as schema from "../../databases/config";
@@ -22,7 +23,6 @@ function dashboardUrl(event: { runtime?: { request?: Request } }) {
 
 export default defineAgent({
   capabilities: [
-    blob({ mode: "write" }),
     db({ mode: "write" }),
     transcribe(() => ({
       model: createGateway({
@@ -61,6 +61,29 @@ export default defineAgent({
     async "agent:finish"(event) {
       const usageCost = event.invocation.usage?.cost?.display ?? "Cost unavailable";
       const result = event.result as CaloriesOutput;
+      const photos = currentInputAttachments(
+        event.input.messages ?? [],
+        event.invocation.run?.messageId,
+      ).filter((part) => part.type === "image");
+
+      if (result.mealId && photos.length) {
+        const photoPath = `meals/${result.mealId}/original`;
+        for (const [index, photo] of photos.entries()) {
+          const body = await resolveAttachmentData(photo);
+          if (!body) throw new Error("Telegram photo data was unavailable after analysis.");
+          const pathname = index === 0 ? photoPath : `meals/${result.mealId}/photos/${index}`;
+          const [storageError] = await blob.put(pathname, body, {
+            access: "private",
+            contentType: photo.mediaType,
+          });
+          if (storageError) throw storageError;
+        }
+        await database
+          .update(schema.meals)
+          .set({ photoPath })
+          .where(eq(schema.meals.id, result.mealId));
+      }
+
       if (result.mealId && usageCost !== "Cost unavailable") {
         try {
           await database

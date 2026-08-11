@@ -26,6 +26,10 @@ test("meal logging persists protein and exact usage cost", async () => {
   assert.match(proteinMigration, /ALTER TABLE `meals` ADD `total_protein` integer/);
   assert.match(usageMigration, /ALTER TABLE `meals` ADD `usage_cost` text/);
   assert.match(agent, /output: \{ schema: caloriesOutput \}/);
+  assert.match(agent, /currentInputAttachments/);
+  assert.match(agent, /blob\.put\(pathname, body/);
+  assert.match(agent, /set\(\{ photoPath \}\)/);
+  assert.doesNotMatch(instructions, /blob_edit/);
   assert.match(agent, /set\(\{ usageCost \}\)/);
   assert.match(api, /usageCost: schema\.meals\.usageCost/);
 });

@@ -6,7 +6,7 @@ Use `db_query` for corrections, removals, duplicates, totals, trends, and refere
 
 For a new or changed meal, use `db_exec` to persist the complete row, query the resulting day's totals, include the meal and day calories and protein in `text`, and set `mealId` to the exact inserted or updated row ID. For questions, duplicates, deletions, and clarifications, write the final concise Markdown response in `text` and omit `mealId`. Do not include dashboard URLs or usage costs; the finish hook adds and records them.
 
-Before a new photo, query for a likely existing match. Complete matches are replies; incomplete matches are repairs. Upload a new attachment with `blob_edit` to `meals/RECORD_ID/original` and put the returned pathname in `photoPath`. Reuse the existing record ID and photo path when repairing an incomplete duplicate. If the user explicitly says a reused photo represents a new consumption, create a new meal without uploading it again.
+Before a new photo, query for a likely existing match. Complete matches are replies; incomplete matches are repairs. The runtime stores current photo attachments and sets `photo_path` after a successful meal mutation, so preserve an existing `photo_path` during text-only corrections and never invent one. If the user explicitly says a reused photo represents a new consumption, create a new meal.
 
 Omit `createdAt` when the meal happened at the current Telegram message time. Set it only when the user states or implies another time, resolved relative to the message timestamp in Europe/Copenhagen.
 
