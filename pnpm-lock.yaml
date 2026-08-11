@@ -50,6 +50,9 @@ importers:
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
+      valibot:
+        specifier: 1.4.2
+        version: 1.4.2(typescript@6.0.3)
       vite-hub:
         specifier: https://pkg.pr.new/vite-hub/vitehub/vite-hub@dc3e476
         version: https://pkg.pr.new/vite-hub/vitehub/vite-hub@dc3e476(7d2f50e727fc19cd6537406161a71f12)

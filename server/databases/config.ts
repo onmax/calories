@@ -26,6 +26,7 @@ export const meals = sqliteTable(
       .notNull(),
     totalCalories: integer("total_calories"),
     totalProtein: integer("total_protein"),
+    usageCost: text("usage_cost"),
     confidence: text("confidence", { enum: ["low", "medium", "high", "user-stated"] }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(now).notNull(),
   },

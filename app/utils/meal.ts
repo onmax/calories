@@ -12,6 +12,7 @@ export interface Meal {
   photoUrl?: string;
   totalCalories?: number;
   totalProtein?: number;
+  usageCost?: string;
 }
 
 export interface MealsPage {

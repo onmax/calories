@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { Meal, MealsPage } from "~/utils/meal";
+import { getMealTitle, type Meal, type MealsPage } from "~/utils/meal";
 
 const { data, error: initialError } = await useFetch<MealsPage>("/api/meals");
 const meals = ref<Meal[]>(data.value?.meals ?? []);
 const nextCursor = ref(data.value?.nextCursor);
 const selectedId = ref<string>();
+const expandedDays = ref(new Set<string>());
 const loading = ref(false);
 const loadError = ref(initialError.value?.message);
 const sentinel = useTemplateRef<HTMLElement>("sentinel");
@@ -72,6 +73,17 @@ function saveGoals() {
   settingsOpen.value = false;
 }
 
+function toggleDay(key: string) {
+  const next = new Set(expandedDays.value);
+  if (next.has(key)) {
+    next.delete(key);
+    selectedId.value = undefined;
+  } else {
+    next.add(key);
+  }
+  expandedDays.value = next;
+}
+
 onMounted(() => {
   // ponytail: goals stay device-local until the dashboard has authentication.
   try {
@@ -101,7 +113,7 @@ onBeforeUnmount(() => observer?.disconnect());
       @settings="settingsOpen = !settingsOpen"
     />
 
-    <section v-if="settingsOpen" class="goal-editor" aria-label="Daily goals">
+    <section v-if="settingsOpen" id="goal-editor" class="goal-editor" aria-label="Daily goals">
       <div>
         <label for="calorie-goal">Calories</label>
         <UInputNumber id="calorie-goal" v-model="calorieGoal" :min="50" :step="50" />
@@ -114,7 +126,12 @@ onBeforeUnmount(() => observer?.disconnect());
     </section>
 
     <div class="daily-log">
-      <section v-for="day in days" :key="day.key" class="day-section">
+      <section
+        v-for="day in days"
+        :key="day.key"
+        class="day-section"
+        :class="{ 'is-open': expandedDays.has(day.key) }"
+      >
         <aside class="day-summary">
           <header>
             <span>{{ day.label }}</span>
@@ -126,9 +143,34 @@ onBeforeUnmount(() => observer?.disconnect());
             :protein="day.protein"
             :protein-goal="proteinGoal"
           />
+
+          <button
+            class="meal-strip"
+            type="button"
+            :aria-expanded="expandedDays.has(day.key)"
+            :aria-label="`${expandedDays.has(day.key) ? 'Hide' : 'Show'} ${day.meals.length} meals from ${day.label}`"
+            @click="toggleDay(day.key)"
+          >
+            <span class="meal-strip-photos" aria-hidden="true">
+              <span v-for="meal in day.meals.slice(0, 4)" :key="meal.id" class="meal-strip-photo">
+                <MealPhoto :meal="meal" />
+              </span>
+              <span v-if="day.meals.length > 4" class="meal-strip-more">+{{ day.meals.length - 4 }}</span>
+            </span>
+            <span class="meal-strip-copy">
+              <strong>{{ expandedDays.has(day.key) ? "Hide meals" : "View meals" }}</strong>
+              <span>{{ day.meals.map(getMealTitle).slice(0, 2).join(" · ") }}</span>
+            </span>
+            <UIcon
+              class="day-chevron"
+              :class="{ 'is-expanded': expandedDays.has(day.key) }"
+              name="i-lucide-chevron-down"
+              aria-hidden="true"
+            />
+          </button>
         </aside>
 
-        <div class="meal-list">
+        <div v-if="expandedDays.has(day.key)" class="meal-list">
           <MealAnalysis
             v-for="meal in day.meals"
             :key="meal.id"

@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: "en" },
-      meta: [{ name: "color-scheme", content: "dark" }],
+      meta: [{ name: "color-scheme", content: "light dark" }],
       title: "Calories",
     },
   },
@@ -24,7 +24,7 @@ export default defineNuxtConfig({
   },
   css: ["~/assets/main.css"],
   ui: {
-    colorMode: false,
+    colorMode: true,
   },
   ssr: false,
   icon: {

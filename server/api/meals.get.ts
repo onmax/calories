@@ -25,6 +25,7 @@ export default defineEventHandler(async (event) => {
       photoPath: schema.meals.photoPath,
       totalCalories: schema.meals.totalCalories,
       totalProtein: schema.meals.totalProtein,
+      usageCost: schema.meals.usageCost,
     })
     .from(schema.meals)
     .where(
@@ -57,6 +58,7 @@ export default defineEventHandler(async (event) => {
         : undefined,
       totalCalories: meal.totalCalories ?? undefined,
       totalProtein: meal.totalProtein ?? undefined,
+      usageCost: meal.usageCost ?? undefined,
     })),
     nextCursor:
       meals.length > limit && lastMeal

@@ -18,14 +18,23 @@ defineEmits<{ settings: [] }>();
       </div>
     </div>
 
-    <UButton
-      :aria-expanded="settingsOpen"
-      color="neutral"
-      icon="i-lucide-sliders-horizontal"
-      variant="ghost"
-      @click="$emit('settings')"
-    >
-      <span class="goal-button-copy">{{ calorieGoal.toLocaleString() }} kcal · {{ proteinGoal }} g</span>
-    </UButton>
+    <div class="header-actions">
+      <button
+        class="goal-summary"
+        type="button"
+        :aria-expanded="settingsOpen"
+        aria-controls="goal-editor"
+        @click="$emit('settings')"
+      >
+        <span>Goal</span>
+        <strong><i class="calorie-dot" />{{ calorieGoal.toLocaleString() }} kcal</strong>
+        <strong><i class="protein-dot" />{{ proteinGoal }} g protein</strong>
+      </button>
+
+      <ClientOnly>
+        <UColorModeButton class="theme-toggle" color="neutral" variant="ghost" />
+        <template #fallback><span class="theme-toggle" aria-hidden="true" /></template>
+      </ClientOnly>
+    </div>
   </header>
 </template>

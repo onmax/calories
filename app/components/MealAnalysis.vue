@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatMealTime, getMealPhotoUrl, getMealTitle, type Meal } from "~/utils/meal";
+import { formatMealTime, getMealTitle, type Meal } from "~/utils/meal";
 
 defineProps<{
   expanded: boolean;
@@ -24,8 +24,7 @@ const tabs = [
       @click="$emit('toggle')"
     >
       <span class="meal-photo">
-        <img v-if="getMealPhotoUrl(meal)" :src="getMealPhotoUrl(meal)" alt="" loading="lazy" />
-        <UIcon v-else name="i-lucide-utensils" aria-hidden="true" />
+        <MealPhoto :meal="meal" />
       </span>
 
       <span class="meal-copy">
@@ -37,6 +36,7 @@ const tabs = [
       <span class="meal-macros tabular-nums">
         <strong>{{ meal.totalCalories?.toLocaleString() ?? "—" }} <small>kcal</small></strong>
         <span>{{ meal.totalProtein ?? "—" }} <small>g protein</small></span>
+        <small v-if="meal.usageCost" class="meal-cost">AI {{ meal.usageCost }}</small>
       </span>
 
       <UIcon class="meal-chevron" name="i-lucide-chevron-down" aria-hidden="true" />
@@ -74,6 +74,10 @@ const tabs = [
             <div>
               <dt>Estimate</dt>
               <dd>{{ meal.confidence || "Unknown" }} confidence</dd>
+            </div>
+            <div>
+              <dt>AI usage</dt>
+              <dd>{{ meal.usageCost || "Not recorded for this meal" }}</dd>
             </div>
           </dl>
         </template>
