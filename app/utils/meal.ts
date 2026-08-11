@@ -1,15 +1,22 @@
 export interface Meal {
   caption?: string;
-  confidence?: "low" | "medium" | "high";
+  confidence?: "low" | "medium" | "high" | "user-stated";
   createdAt: string;
   id: string;
   items: Array<{
     calories: number;
     name: string;
     portion: string;
+    protein?: number;
   }>;
   photoUrl?: string;
   totalCalories?: number;
+  totalProtein?: number;
+}
+
+export interface MealsPage {
+  meals: Meal[];
+  nextCursor?: string;
 }
 
 export function formatMealTime(value: string): string {

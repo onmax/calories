@@ -1,96 +1,83 @@
 <script setup lang="ts">
 import { formatMealTime, getMealPhotoUrl, getMealTitle, type Meal } from "~/utils/meal";
 
-const props = defineProps<{
-  dayCalories: number;
-  dayMealCount: number;
-  meal?: Meal;
-  meals: Meal[];
-  proteinGoal: number;
-  selectedId?: string;
+defineProps<{
+  expanded: boolean;
+  meal: Meal;
 }>();
-const emit = defineEmits<{ select: [id: string] }>();
-const visibleItems = computed(() => props.meal?.items.slice(0, 6) ?? []);
-const hiddenItemCount = computed(() =>
-  Math.max(0, (props.meal?.items.length ?? 0) - visibleItems.value.length),
-);
+
+defineEmits<{ toggle: [] }>();
+
+const tabs = [
+  { label: "Foods", slot: "foods", value: "foods" },
+  { label: "Notes", slot: "notes", value: "notes" },
+];
 </script>
 
 <template>
-  <aside class="analysis-panel">
-    <div v-if="meal" :key="meal.id" class="analysis-scroll">
-      <div v-if="meals.length" class="meal-carousel" aria-label="Meals from this day">
-        <button
-          v-for="dayMeal in meals"
-          :key="dayMeal.id"
-          type="button"
-          :aria-label="getMealTitle(dayMeal)"
-          :aria-pressed="dayMeal.id === selectedId"
-          @click="emit('select', dayMeal.id)"
-        >
-          <img v-if="getMealPhotoUrl(dayMeal)" :src="getMealPhotoUrl(dayMeal)" alt="" />
-          <span v-else class="meal-carousel-fallback">
-            <small>{{ formatMealTime(dayMeal.createdAt) }}</small>
-            <strong>{{ getMealTitle(dayMeal) }}</strong>
-          </span>
-        </button>
-      </div>
+  <article class="meal-entry" :class="{ 'is-expanded': expanded }">
+    <button
+      class="meal-trigger"
+      type="button"
+      :aria-expanded="expanded"
+      :aria-label="`${expanded ? 'Collapse' : 'Expand'} ${getMealTitle(meal)}`"
+      @click="$emit('toggle')"
+    >
+      <span class="meal-photo">
+        <img v-if="getMealPhotoUrl(meal)" :src="getMealPhotoUrl(meal)" alt="" loading="lazy" />
+        <UIcon v-else name="i-lucide-utensils" aria-hidden="true" />
+      </span>
 
-      <section class="meal-summary">
-        <header class="analysis-heading">
-          <div class="analysis-meta">
-            <span class="meal-time">{{ formatMealTime(meal.createdAt) }}</span>
-            <span
-              v-if="meal.confidence"
-              class="confidence-indicator"
-              :data-confidence="meal.confidence"
-            >
-              <span class="confidence-dot" />
-              {{ meal.confidence }}
-            </span>
-          </div>
-          <h2>{{ getMealTitle(meal) }}</h2>
-        </header>
+      <span class="meal-copy">
+        <span class="meal-time">{{ formatMealTime(meal.createdAt) }}</span>
+        <strong>{{ getMealTitle(meal) }}</strong>
+        <span>{{ meal.items.map((item) => item.portion).slice(0, 2).join(" · ") }}</span>
+      </span>
 
-        <section class="estimate-total">
-          <strong class="tabular-nums">{{ meal.totalCalories?.toLocaleString() }}</strong>
-          <span>kcal</span>
-        </section>
-      </section>
+      <span class="meal-macros tabular-nums">
+        <strong>{{ meal.totalCalories?.toLocaleString() ?? "—" }} <small>kcal</small></strong>
+        <span>{{ meal.totalProtein ?? "—" }} <small>g protein</small></span>
+      </span>
 
-      <section class="breakdown-section">
-        <div class="panel-section-heading">
-          <h3>What’s on the plate</h3>
-          <span v-if="hiddenItemCount">+{{ hiddenItemCount }} more</span>
-        </div>
-        <div class="food-list">
-          <article
-            v-for="item in visibleItems"
-            :key="`${item.name}-${item.portion}`"
-            class="food-row"
-          >
-            <div>
-              <h4>{{ item.name }}</h4>
-              <p>{{ item.portion }}</p>
+      <UIcon class="meal-chevron" name="i-lucide-chevron-down" aria-hidden="true" />
+    </button>
+
+    <div v-if="expanded" class="meal-detail">
+      <UTabs
+        :items="tabs"
+        color="neutral"
+        default-value="foods"
+        :ui="{ content: 'meal-tab-content', list: 'meal-tab-list' }"
+        variant="link"
+      >
+        <template #foods>
+          <div class="food-list">
+            <div v-for="item in meal.items" :key="`${item.name}-${item.portion}`" class="food-row">
+              <div>
+                <strong>{{ item.name }}</strong>
+                <span>{{ item.portion }}</span>
+              </div>
+              <div class="food-macros tabular-nums">
+                <span>{{ item.calories }} kcal</span>
+                <strong>{{ item.protein ?? "—" }} g</strong>
+              </div>
             </div>
-            <strong class="tabular-nums">{{ item.calories }} <span>kcal</span></strong>
-          </article>
-        </div>
-      </section>
+          </div>
+        </template>
 
-      <footer class="day-context">
-        <span>Day</span>
-        <strong class="tabular-nums">{{ dayCalories.toLocaleString() }} kcal</strong>
-        <span
-          >{{ dayMealCount }} {{ dayMealCount === 1 ? "meal" : "meals" }} · {{ proteinGoal }} g
-          protein goal</span
-        >
-      </footer>
+        <template #notes>
+          <dl class="meal-notes">
+            <div>
+              <dt>Caption</dt>
+              <dd>{{ meal.caption || "No caption" }}</dd>
+            </div>
+            <div>
+              <dt>Estimate</dt>
+              <dd>{{ meal.confidence || "Unknown" }} confidence</dd>
+            </div>
+          </dl>
+        </template>
+      </UTabs>
     </div>
-
-    <div v-else class="analysis-empty">
-      <UIcon name="i-lucide-image" />
-      <h2>Select a meal</h2>
-    </div>
-  </aside>
+  </article>
 </template>

@@ -11,11 +11,22 @@ export const meals = sqliteTable(
     caption: text("caption"),
     photoPath: text("photo_path"),
     items: text("items", { mode: "json" })
-      .$type<Array<{ calories: number; name: string; portion: string }>>()
+      .$type<
+        Array<{
+          calories?: number;
+          item?: string;
+          kcal?: number;
+          name?: string;
+          portion?: string;
+          portion_g?: number;
+          protein?: number;
+        }>
+      >()
       .default([])
       .notNull(),
     totalCalories: integer("total_calories"),
-    confidence: text("confidence", { enum: ["low", "medium", "high"] }),
+    totalProtein: integer("total_protein"),
+    confidence: text("confidence", { enum: ["low", "medium", "high", "user-stated"] }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(now).notNull(),
   },
   (table) => [index("meals_created_idx").on(table.createdAt)],
