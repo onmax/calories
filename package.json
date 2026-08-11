@@ -29,6 +29,7 @@
     "@nuxt/ui": "4.10.0",
     "@openrouter/ai-sdk-provider": "3.0.0",
     "@vite-hub/database": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@dc3e476",
+    "ai": "7.0.34",
     "drizzle-orm": "0.45.2",
     "h3": "2.0.1-rc.25",
     "nuxt": "npm:nuxt-nightly@5.0.0-29746924.1554961a",

@@ -11,7 +11,7 @@ Production: <https://vitehub-calories.maximogarciamtnez.workers.dev>
 - ViteHub Agent connects Telegram to a model with database-write, blob, and usage-cost Capabilities, then renders the structured result through Chat SDK.
 - ViteHub Blob stores original photos privately in Cloudflare R2.
 - ViteHub Database uses generated local artifacts during development and a Cloudflare D1 binding in production.
-- Vercel AI SDK sends images to GLM 5V Turbo through OpenRouter using `OPENROUTER_API_KEY`.
+- The AI SDK sends images to GLM 5V Turbo and audio to Voxtral through OpenRouter using `OPENROUTER_API_KEY`.
 
 ## Input lifecycle
 
@@ -19,6 +19,7 @@ Production: <https://vitehub-calories.maximogarciamtnez.workers.dev>
 Telegram message
   → allow numeric Telegram user ID
   → show a temporary Chat SDK fallback
+  → transcribe audio through OpenRouter when present
   → invoke the Agent through OpenRouter
   → use ViteHub Capabilities to read or update D1 and R2
   → replace the fallback with the result, usage cost, and dashboard URL

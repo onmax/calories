@@ -1,8 +1,9 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText } from "ai";
 import { eq } from "drizzle-orm";
 import * as v from "valibot";
 import { currentInputAttachments, defineAgent, resolveAttachmentData } from "vite-hub/agent";
-import { cost, db } from "vite-hub/agent/capabilities";
+import { audioBytes, cost, db, transcribe } from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
 import { blob } from "vite-hub/blob";
 import { renderTemplate } from "#vitehub/templates";
@@ -16,6 +17,10 @@ const caloriesOutput = v.object({
 
 type CaloriesOutput = v.InferOutput<typeof caloriesOutput>;
 
+function openRouter() {
+  return createOpenRouter({ apiKey: useServerEnv().openrouter.apiKey });
+}
+
 function dashboardUrl(event: { runtime?: { request?: Request } }) {
   const origin = event.runtime?.request ? new URL(event.runtime.request.url).origin : undefined;
   return origin;
@@ -25,6 +30,21 @@ export default defineAgent({
   capabilities: [
     db({ mode: "write" }),
     cost(),
+    transcribe({
+      async execute({ audio }) {
+        const { text } = await generateText({
+          model: openRouter()("mistralai/voxtral-small-24b-2507"),
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: "Transcribe this audio exactly. Return only the transcript." },
+              { type: "file", data: await audioBytes(audio), mediaType: audio.mediaType },
+            ],
+          }],
+        });
+        return text;
+      },
+    }),
   ],
   channels: {
     telegram: telegram({
@@ -43,9 +63,7 @@ export default defineAgent({
   },
   driver: {
     maxRetries: 0,
-    model: () => createOpenRouter({
-      apiKey: useServerEnv().openrouter.apiKey,
-    })("z-ai/glm-5v-turbo", {
+    model: () => openRouter()("z-ai/glm-5v-turbo", {
       usage: { include: true },
     }),
     output: { schema: caloriesOutput },
