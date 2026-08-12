@@ -34,6 +34,5 @@ export const meals = sqliteTable(
 );
 
 export default defineDatabase({
-  cloudflare: { binding: "DB" },
   schema: { meals },
 });

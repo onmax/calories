@@ -44,7 +44,7 @@ test("durable Telegram photos start a Cloudflare Workflow", async () => {
         allowedUserIds: [42],
         botToken: "test-token",
         webhookSecret: false,
-        messages: { delivery: "manual", state, timeout: 20, triggerHistory: "none" },
+        messages: { delivery: "manual", durable: true, state, timeout: 20, triggerHistory: "none" },
       }),
     },
     driver: {
@@ -72,8 +72,8 @@ test("durable Telegram photos start a Cloudflare Workflow", async () => {
 
   try {
     const response = await handler(request, "telegram", {
-      agentName: "calories",
-      capabilities: { blob: {}, db: {} },
+      agentIdentity: { name: "calories" },
+      cloudflare: { env: globalThis.__env__ },
       state,
       waitUntil: (task) => waitUntilTasks.push(task),
     });
@@ -83,7 +83,7 @@ test("durable Telegram photos start a Cloudflare Workflow", async () => {
     assert.equal(workflowPayload.input.timeout, undefined);
     const workflowMessages = [workflowPayload.input.message, ...(workflowPayload.input.messages || [])].filter(Boolean);
     const image = workflowMessages.flatMap((message) => message.parts).find((part) => part.type === "image");
-    assert.equal(image.data, "/9j/2Q==");
+    assert.equal(image.data, "data:image/jpeg;base64,/9j/2Q==");
     assert.equal("fetchData" in image, false);
   } finally {
     resetWorkflowRuntime();

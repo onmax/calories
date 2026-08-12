@@ -1,64 +1,8 @@
-diff --git a/dist/agent-output-Dimljvlx.js b/dist/agent-output-Dimljvlx.js
-index 1e8e25342ffd018174ab4be9deac0c7683bebecf..c719fc68d784dea1afcaafe770fab50c4fdd1073 100644
---- a/dist/agent-output-Dimljvlx.js
-+++ b/dist/agent-output-Dimljvlx.js
-@@ -388,6 +388,20 @@ function latencyFromResult(result) {
- 		...tokensPerSecond !== void 0 ? { tokensPerSecond } : {}
- 	};
- }
-+function providerCostFromResult(result) {
-+	if (!isRecord(result) || !isRecord(result.providerMetadata)) return;
-+	for (const metadata of Object.values(result.providerMetadata)) {
-+		const cost = isRecord(metadata) && isRecord(metadata.usage) ? metadata.usage.cost : void 0;
-+		if (typeof cost === "number" && Number.isFinite(cost) && cost >= 0) return {
-+			estimated: false,
-+			source: "provider",
-+			usd: cost.toLocaleString("en-US", {
-+				maximumFractionDigits: 20,
-+				useGrouping: false
-+			})
-+		};
-+	}
-+}
- function usageRecordFromUsage(rawUsage, metadataSource, fallbackMetadataSource, run) {
- 	if (!isRecord(rawUsage)) return;
- 	const inputTokens = readNumber(rawUsage, "inputTokens", "promptTokens", "input_tokens", "prompt_tokens");
-@@ -410,7 +424,9 @@ function usageRecordFromUsage(rawUsage, metadataSource, fallbackMetadataSource,
- 	const response = responseFromResult(metadataSource) ?? responseFromResult(fallbackMetadataSource);
- 	const latency = latencyFromResult(metadataSource) ?? latencyFromResult(fallbackMetadataSource);
- 	const credentialSource = credentialSourceFromMetadata(readAgentUsageMetadata(metadataSource, fallbackMetadataSource));
-+	const cost = providerCostFromResult(metadataSource) ?? providerCostFromResult(fallbackMetadataSource);
- 	return {
-+		...cost ? { cost } : {},
- 		...credentialSource ? { credentialSource } : {},
- 		...latency ? { latency } : {},
- 		...modelMetadata,
-diff --git a/dist/capabilities.js b/dist/capabilities.js
-index fbf70607f9cb097f9d8dd61b7362f4e818bd4449..83608e17e50e3f0b0990035a3e8bd3857cce518a 100644
---- a/dist/capabilities.js
-+++ b/dist/capabilities.js
-@@ -5824,10 +5824,14 @@ function selectAgentDatabase(handle, database = "default") {
- 	if (database !== "default") throw new Error(`[vitehub] Database "${database}" is not available.`);
- 	return handle;
- }
-+async function resolveDatabasePrimitive(context) {
-+	if (context.capabilities?.db !== void 0) return requirePrimitive$1(context, "db");
-+	return (await import("@vite-hub/database/drizzle")).agentDb;
-+}
- function dbTools(mode, schemaMode, options) {
--	return (context) => {
-+	return async (context) => {
- 		const databaseName = options.database || "default";
--		const database = selectAgentDatabase(requirePrimitive$1(context, "db"), databaseName);
-+		const database = selectAgentDatabase(await resolveDatabasePrimitive(context), databaseName);
- 		const tools = {
- 			db_query: createTool$2({
- 				description: "Run one read-only SQL query against the configured ViteHub database.",
-diff --git a/dist/routes-Ck25LnWN.js b/dist/routes-Ck25LnWN.js
-index 17d91bd5b810edb5827becc004d0ed6cf1bdaf22..c8451edd3058d8bb6d02f2b9fcaf47b016cc872b 100644
---- a/dist/routes-Ck25LnWN.js
-+++ b/dist/routes-Ck25LnWN.js
-@@ -1772,6 +1772,43 @@ async function chatMessageParts(message, options = {}) {
+diff --git a/dist/routes-BWPMAKjV.js b/dist/routes-BWPMAKjV.js
+index 553391f63105d2678539c66b7e55ed05c7839fe4..bc7d42c9eae5b56ccc3ebec3884441715285e98c 100644
+--- a/dist/routes-BWPMAKjV.js
++++ b/dist/routes-BWPMAKjV.js
+@@ -1773,6 +1773,43 @@ async function chatMessageParts(message, options = {}) {
  	}
  	return parts;
  }
@@ -119,157 +63,20 @@ index 17d91bd5b810edb5827becc004d0ed6cf1bdaf22..c8451edd3058d8bb6d02f2b9fcaf47b0
  		role: message.author.isMe ? "assistant" : "user"
  	};
  }
-@@ -2206,7 +2244,7 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
- 		if (isResolvedAgentTriggerHandledInvocation(invocation)) return;
- 		assertChatDeliveryOptions(options || {});
- 		const manualDelivery = options?.delivery === "manual";
--		const durableDelivery = manualDelivery && options?.durable === true;
-+		const durableDelivery = manualDelivery && options?.durable !== false;
- 		const streamsPhasedReplies = !manualDelivery && (options?.stream !== false || options?.commentary !== void 0);
- 		run = invocation.run;
- 		const runContext = {
-@@ -2215,6 +2253,8 @@ async function handleChatSdkMessage(agent, context, registration, thread, messag
- 		};
- 		const resolvedInvocationInput = invocation.input;
- 		if (durableDelivery) {
-+			const typing = startChatTypingRefresh(thread, context);
-+			setTimeout(() => typing.stop(), options?.timeout ?? 28_000);
- 			await runAgent(agent, runContext, withResolvedAgentInvokerInput({
- 				...resolvedInvocationInput,
- 				context: {
-diff --git a/dist/runtime/workflow.js b/dist/runtime/workflow.js
-index 44309a40f2913cdb24b2110b99d8c725ccbc0031..96b04d0a03d04b38e666d7dc37aba8387a84b792 100644
---- a/dist/runtime/workflow.js
-+++ b/dist/runtime/workflow.js
-@@ -5,6 +5,7 @@ import { i as withColocatedAgentSkills, r as decodeColocatedAgentSkills } from "
- import { t as createAgentRuntimeContext } from "../context-KghRPYRx.js";
- import { n as withColocatedAgentHome, t as decodeColocatedAgentHome } from "../colocated-agent-home-EYZ8BwLn.js";
- import { n as getCloudflareEnv, t as getActiveCloudflareEnv } from "../cloudflare-env-BK9cKEI3.js";
-+import { o as toAgentRunResult } from "../agent-output-Dimljvlx.js";
- //#region src/runtime/workflow.ts
- function agentWithColocatedSkills(agent, sources) {
- 	return withColocatedAgentSkills(agent, decodeColocatedAgentSkills(sources));
-@@ -20,12 +21,21 @@ function agentRuntimeFromWorkflowProvider(provider) {
- function waitUntil(promise) {
- 	Promise.resolve(promise).catch(() => {});
- }
-+function portableWorkflowResult(result) {
-+	try {
-+		return structuredClone(result);
-+	} catch {
-+		const { raw: _raw, ...normalized } = toAgentRunResult(result);
-+		return structuredClone(normalized);
-+	}
-+}
- async function runAgentWorkflowDefinition(agent, context, runAgentInline) {
- 	const payload = context.payload || {};
- 	const { getWorkflowRuntimeEvent } = await loadAgentWorkflowRuntimeStateModule();
- 	const cloudflareEnv = context.provider === "cloudflare" ? getActiveCloudflareEnv() || getCloudflareEnv(getWorkflowRuntimeEvent()) : void 0;
-+	if (cloudflareEnv) globalThis.__env__ = cloudflareEnv;
- 	const runId = context.id || payload.run?.runId;
--	return await runAgentInline(agent, createAgentRuntimeContext({
-+	return portableWorkflowResult(await runAgentInline(agent, createAgentRuntimeContext({
- 		...payload.agentIdentity ? { agentIdentity: payload.agentIdentity } : {},
- 		...payload.capabilities ? { capabilities: payload.capabilities } : {},
- 		...cloudflareEnv ? { cloudflare: { env: cloudflareEnv } } : {},
-@@ -38,7 +48,7 @@ async function runAgentWorkflowDefinition(agent, context, runAgentInline) {
- 		runtime: payload.runtime || agentRuntimeFromWorkflowProvider(context.provider),
- 		runtimeConfig: payload.runtimeConfig || {},
- 		waitUntil
--	}), payload.resolvedInvoker ? restoreResolvedAgentInvokerInput(payload.input ?? {}) : payload.input ?? {});
-+	}), payload.resolvedInvoker ? restoreResolvedAgentInvokerInput(payload.input ?? {}) : payload.input ?? {}));
- }
- //#endregion
- export { agentWithColocatedHome, agentWithColocatedSkills, runAgentWorkflowDefinition, workspaceAgentWithSourceRoot };
-diff --git a/dist/src-Dv-FTdbj.js b/dist/src-Dv-FTdbj.js
-index 0bd7181acecefc5db6e1b6e582d0ffbde25bd831..5661999d8d6ea12e3f941dc47365bbc4af8cc1e9 100644
---- a/dist/src-Dv-FTdbj.js
-+++ b/dist/src-Dv-FTdbj.js
-@@ -10,6 +10,7 @@ import { S as agentOutputEventObserverContextKey, _ as normalizeUiMessageStream,
- import { _ as inspectAgentCapacity, c as resolveWorkspaceInstructionBindings, d as workspaceDefinitionFromOptions, f as workspaceDefinitionWithAutoCommitRules, g as configureAgentCapacity, h as acquireAgentCapacity, l as workspaceAgentOwnsWorkspaceDefinition, m as workspaceNameFromOptions, p as workspaceModeFromOptions, r as isWorkspaceAgentOptions, s as resolveWorkspaceAgentDefaultInstructions } from "./workspace-agent-C26CY35V.js";
- import { n as loadAgentWorkflowRuntimeStateModule, t as loadAgentWorkflowModule } from "./workflow-runtime-loaders-T5jPFIAJ.js";
- import { o as sendAgentInvocationInput, r as agentInvocationInputSupport, s as withAgentInvocationControlId } from "./agent-invocation-control-3VAmvoDB.js";
-+import { n as getCloudflareEnv } from "./cloudflare-env-BK9cKEI3.js";
- import { n as colocatedAgentSkillsSymbol, t as colocatedAgentSkillsContextKey } from "./colocated-agent-skills-BAz3kNyV.js";
- import { createTraceEventLog, getViteHubErrorShape, resolveRuntimeContext } from "@vite-hub/runtime";
- import { Deferred, Effect, Exit } from "effect";
-@@ -677,12 +678,34 @@ async function getAgentWorkflowHandle(agent, name, reuseRegistry) {
- 	agentWorkflowHandles.set(agent, handles);
- 	return handle;
- }
-+async function portableAgentWorkflowRunId(runId) {
-+	if (/^[a-zA-Z0-9_][a-zA-Z0-9-_]{0,99}$/.test(runId)) return runId;
-+	const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(runId));
-+	return `agent-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-+}
-+async function portableWorkflowMessages(messages) {
-+	const materialized = await materializeMessageAttachmentData(messages);
-+	return await Promise.all(materialized.map(async (message) => ({
-+		...message,
-+		parts: await Promise.all(message.parts.map(async (part) => {
-+			if (!["audio", "file", "image"].includes(part.type)) return part;
-+			let data = part.data;
-+			if (data instanceof Blob) data = await data.arrayBuffer();
-+			if (data instanceof ArrayBuffer) data = new Uint8Array(data);
-+			return data instanceof Uint8Array ? { ...part, data: data.toBase64() } : part;
-+		}))
-+	})));
-+}
- async function runAgentAsWorkflow(agent, context, input, options = {}) {
- 	const binding = resolveAgentWorkflowRuntimeBinding(agent);
-+	const cloudflareEnv = getCloudflareEnv(context);
- 	if (!binding || "discoveryDefault" in binding && !context.agentIdentity) return void 0;
- 	if ("discoveryDefault" in binding) {
--		const { getWorkflowRuntimeConfig } = await loadAgentWorkflowRuntimeStateModule();
--		if (!getWorkflowRuntimeConfig()) return void 0;
-+		const runtimeState = await loadAgentWorkflowRuntimeStateModule();
-+		if (!runtimeState.getWorkflowRuntimeConfig()) {
-+			if (!cloudflareEnv) return void 0;
-+			runtimeState.setWorkflowRuntimeConfig({ provider: "cloudflare" });
-+		}
- 	}
- 	if ("discoveryDefault" in binding && context.agentIdentity) {
- 		const owner = context[agentIdentityOwner];
-@@ -690,15 +713,16 @@ async function runAgentAsWorkflow(agent, context, input, options = {}) {
- 	}
- 	const capabilityNames = Object.entries(context.capabilities || {}).filter(([, capability]) => capability !== false).map(([name]) => name);
- 	const disabledCapabilities = Object.fromEntries(Object.entries(context.capabilities || {}).filter(([, capability]) => capability === false));
--	if (input.context?.["vitehub.agent.require-workflow"] === true && capabilityNames.length) return void 0;
--	if ("discoveryDefault" in binding && capabilityNames.length) return void 0;
-+	if (input.context?.["vitehub.agent.require-workflow"] === true && capabilityNames.some((name) => name !== "blob" && name !== "db")) return void 0;
-+	if ("discoveryDefault" in binding && capabilityNames.some((name) => name !== "blob" && name !== "db")) return void 0;
- 	const handle = await getAgentWorkflowHandle(agent, resolveAgentWorkflowName(agent, binding, context), Boolean(context.agentIdentity));
- 	const resolvedContext = createResolvedRuntimeContext(context);
- 	const workflowInput = { ...input };
- 	delete workflowInput.abortSignal;
--	if (workflowInput.messages) workflowInput.messages = await materializeMessageAttachmentData(workflowInput.messages);
--	if (workflowInput.message && typeof workflowInput.message !== "string") [workflowInput.message] = await materializeMessageAttachmentData([workflowInput.message]);
--	if (Array.isArray(workflowInput.prompt)) workflowInput.prompt = await materializeMessageAttachmentData(workflowInput.prompt);
+diff --git a/dist/src-BxGwXlbm.js b/dist/src-BxGwXlbm.js
+index 267ebee14d6ccaf8ba36c62cc2954d9f69650d01..d0c647021492e90401f280b951eafc062db34d42 100644
+--- a/dist/src-BxGwXlbm.js
++++ b/dist/src-BxGwXlbm.js
+@@ -708,4 +708,6 @@ async function runAgentAsWorkflow(agent, context, input, options = {}) {
+-	const { getWorkflowRuntimeConfig, runWithWorkflowRuntimeEvent } = await loadAgentWorkflowRuntimeStateModule();
+-	const workflowConfig = getWorkflowRuntimeConfig();
+-	if ("discoveryDefault" in binding) {
+-		if (!workflowConfig) return void 0;
++	const { getWorkflowRuntimeConfig, runWithWorkflowRuntimeEvent, setWorkflowRuntimeConfig } = await loadAgentWorkflowRuntimeStateModule();
++	let workflowConfig = getWorkflowRuntimeConfig();
++	if ("discoveryDefault" in binding && !workflowConfig) {
++		if (!cloudflareEnv) return void 0;
++		workflowConfig = { provider: "cloudflare" };
++		setWorkflowRuntimeConfig(workflowConfig);
+@@ -724,0 +727 @@ async function runAgentAsWorkflow(agent, context, input, options = {}) {
 +	if (input.context?.["vitehub.agent.require-workflow"] === true) delete workflowInput.timeout;
-+	if (workflowInput.messages) workflowInput.messages = await portableWorkflowMessages(workflowInput.messages);
-+	if (workflowInput.message && typeof workflowInput.message !== "string") [workflowInput.message] = await portableWorkflowMessages([workflowInput.message]);
-+	if (Array.isArray(workflowInput.prompt)) workflowInput.prompt = await portableWorkflowMessages(workflowInput.prompt);
- 	const inheritedRun = options.fresh && context.run ? Object.fromEntries(Object.entries(context.run).filter(([key]) => key !== "runId")) : context.run;
- 	const payload = {
- 		...context.agentIdentity ? { agentIdentity: context.agentIdentity } : {},
-@@ -711,17 +735,18 @@ async function runAgentAsWorkflow(agent, context, input, options = {}) {
- 		...inheritedRun ? { run: inheritedRun } : {}
- 	};
- 	const workflowEvent = {
--		...context.cloudflare?.env ? { env: context.cloudflare.env } : {},
-+		...cloudflareEnv ? { env: cloudflareEnv } : {},
- 		waitUntil: context.waitUntil,
- 		context: {
- 			...context.cloudflare ? { cloudflare: context.cloudflare } : {},
- 			waitUntil: context.waitUntil
- 		}
- 	};
-+	const workflowRunId = !options.fresh && context.run?.runId ? await portableAgentWorkflowRunId(context.run.runId) : void 0;
- 	const { runWithWorkflowRuntimeEvent } = await loadAgentWorkflowRuntimeStateModule();
- 	return {
- 		handle,
--		run: await runWithWorkflowRuntimeEvent(workflowEvent, () => handle.run(payload, !options.fresh && context.run?.runId ? { id: context.run.runId } : {}))
-+		run: await runWithWorkflowRuntimeEvent(workflowEvent, () => handle.run(payload, workflowRunId ? { id: workflowRunId } : {}))
- 	};
- }
- function resolveRegistryModule(module) {

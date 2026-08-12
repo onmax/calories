@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { env, type EnvViteUserConfig } from "vite-hub/env";
 
 export default defineNuxtConfig({
@@ -19,10 +18,6 @@ export default defineNuxtConfig({
     },
     database: {
       driver: "d1",
-      databaseId: env({
-        default: "d3907c3b-de95-4bea-b7a8-1905b7f57d7a",
-        source: env.source("CLOUDFLARE_D1_DATABASE_ID"),
-      }),
       databaseName: "vitehub-calories",
     },
   },
@@ -42,10 +37,6 @@ export default defineNuxtConfig({
       config.handlers = config.handlers?.filter(
         (handler) => handler.route !== "/api/_nuxt_icon/:collection",
       );
-      const database = config.cloudflare?.wrangler?.d1_databases?.find(
-        (binding) => binding.binding === "DB",
-      );
-      if (database) database.migrations_dir = resolve("server/databases/migrations");
     },
   },
   vite: {

@@ -54,6 +54,7 @@ export default defineAgent({
       messages: {
         concurrency: "queue",
         delivery: "manual",
+        durable: true,
         fallbackStreamingPlaceholderText: "Thinking…",
         lockScope: "channel",
         triggerHistory: "none",
