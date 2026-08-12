@@ -28,7 +28,7 @@
     "@internationalized/date": "3.12.2",
     "@nuxt/ui": "4.10.0",
     "@openrouter/ai-sdk-provider": "3.0.0",
-    "@vite-hub/database": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@bb950df",
+    "@vite-hub/database": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@bc9cab8",
     "ai": "7.0.34",
     "drizzle-orm": "0.45.2",
     "h3": "2.0.1-rc.25",
@@ -36,7 +36,7 @@
     "ofetch": "2.0.0-alpha.3",
     "tailwindcss": "4.3.3",
     "valibot": "1.4.2",
-    "vite-hub": "https://pkg.pr.new/vite-hub/vitehub/vite-hub@bb950df",
+    "vite-hub": "https://pkg.pr.new/vite-hub/vitehub/vite-hub@bc9cab8",
     "vue-router": "5.2.0"
   },
   "devDependencies": {
