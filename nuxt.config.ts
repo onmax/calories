@@ -28,16 +28,7 @@ export default defineNuxtConfig({
   ssr: false,
   icon: {
     clientBundle: { scan: true },
-    fallbackToApi: false,
     provider: "none",
-    serverBundle: false,
-  },
-  hooks: {
-    "nitro:config"(config) {
-      config.handlers = config.handlers?.filter(
-        (handler) => handler.route !== "/api/_nuxt_icon/:collection",
-      );
-    },
   },
   vite: {
     env: {

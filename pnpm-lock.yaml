@@ -72,6 +72,9 @@ importers:
       '@iconify-json/lucide':
         specifier: 1.2.113
         version: 1.2.113
+      '@nuxt/icon':
+        specifier: 2.5.0
+        version: 2.5.0(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))
       '@types/node':
         specifier: 25.9.2
         version: 25.9.2
@@ -1399,8 +1402,8 @@ packages:
   '@iconify-json/lucide@1.2.113':
     resolution: {integrity: sha512-hfHPXZmLAsZkEfSd4kKRPMRM2HOQz1k11XWtSReEWeecOM+nLtZlfHAzv8nSsrJw2scLz3DKqosNMNXd3mP60Q==}
 
-  '@iconify/collections@1.0.714':
-    resolution: {integrity: sha512-wPpD6RCcvUyxPWJBO2WYfI5P1cfKRZ10K58IzzHCwUnWTUGP28D+01DT0NIuw3NXqxmKUKldzr0rT+26vXLbag==}
+  '@iconify/collections@1.0.723':
+    resolution: {integrity: sha512-h9/C2f+OC/iYFwCuqPh8nFAdAbRyV0TwNUGEA2L3VI4hC89YUa6LOBMr/6LUAgcd3wMPXPnnt0Y6Ecgxqb/rIQ==}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -2118,6 +2121,11 @@ packages:
     peerDependencies:
       vite: '>=6.0'
 
+  '@nuxt/devtools-kit@3.4.1':
+    resolution: {integrity: sha512-6ltPm2yUW8GvDdf3VJna7+flLi+ej7xRfSr+S4ovevKt/CuPf9EqYOn1jW7Kw/U1MXt/71zkn+/O2vu3G6O9Hg==}
+    peerDependencies:
+      vite: '>=6.0'
+
   '@nuxt/devtools-kit@4.0.0-alpha.8':
     resolution: {integrity: sha512-xkfiCO2KIOlkDeeh1Pz/4R/nIPrBY/dmj+rB4eqj7Kp9ncNnciJCfkLymFNrKjldgHVyk9B4X+Q6MVZ9EeIqDg==}
     peerDependencies:
@@ -2131,8 +2139,8 @@ packages:
   '@nuxt/fonts@0.14.0':
     resolution: {integrity: sha512-4uXQl9fa5F4ibdgU8zomoOcyMdnwgdem+Pi8JEqeDYI5yPR32Kam6HnuRr47dTb97CstaepAvXPWQUUHMtjsFQ==}
 
-  '@nuxt/icon@2.3.1':
-    resolution: {integrity: sha512-ebx7Zp08eR0Mw3zFAh3aT+t5zC4RoI0Xf0wLEfbv23LIPUQ9fvxYpofNiNZdG9m96Fvc3pQu6v+NaCRbRYRRog==}
+  '@nuxt/icon@2.5.0':
+    resolution: {integrity: sha512-EBczSfd3QmAD7GoSmJ5jCPvQ5zzNaPPuWPU9DSMcBuBM10A3JIvjaMLEOEniHQRz4iVPb05cJRO/JdC60oiiwg==}
 
   '@nuxt/kit-nightly@5.0.0-29746924.1554961a':
     resolution: {integrity: sha512-/VY5wp2iOQo4/hQYt1VrxLv6Qfo7v3MJblyaq5AJa40MRsS8WH9WcdDvTfPQij5YqfbF/iZiej9CnrYRGzLyxw==}
@@ -2144,6 +2152,10 @@ packages:
 
   '@nuxt/kit@4.5.0':
     resolution: {integrity: sha512-VD4GjRjbh7r7ILoXYbiKeQgZuYP/vJ7iMk6fSRak1+xEyXHpQ+OIq/EfIjfsHv7DVimddOB+I6W/wGXjRVZ+Ng==}
+    engines: {node: '>=18.12.0'}
+
+  '@nuxt/kit@4.5.2':
+    resolution: {integrity: sha512-l66LU9DcJYjmNwqwAj2I5UGRrUbnG2DOKGChnN70zIGtn0eq/z87gi/FRgha6eMb9/FmB1PFHgtx6PWVml1C2Q==}
     engines: {node: '>=18.12.0'}
 
   '@nuxt/nitro-server-nightly@5.0.0-29746924.1554961a':
@@ -3568,7 +3580,7 @@ packages:
     resolution: {integrity: sha512-rWhYfIyW0Va0gFxtz434LhVirV+eQs+AK0QQWtsOPw2oTvOSA4iogQqemRqvRPPbqI8nfZOz6kbCsytVa20gdw==}
 
   '@vite-hub/agent@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/agent@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-jBkaGvTY8jzoWiszKZy5INx71Dg+X5WTm5qcEwvXG3/OU/JgtRA0haXC8QkOlbkHXBOZxwjHOabFY12wLcHcWg==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/agent@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/agent@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.15.0'}
     peerDependencies:
@@ -3611,7 +3623,7 @@ packages:
         optional: true
 
   '@vite-hub/auth@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/auth@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-M/gMsacADH+P85j+Vb3df2sbYesw1q4GHmhpVIesN0TzUWQBPlTPCULJtmwprF02suT9lHmd6Rsnmc8TOwUCGw==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/auth@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/auth@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3627,7 +3639,7 @@ packages:
         optional: true
 
   '@vite-hub/blob@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/blob@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-t9qnHrutI3dpx5hHQ9Rt5qhaDIKbaZwKlB/o68J3jMinM3gTTavj7Hb9iIXrExvRRgMqXxpZJ/22uFrjHB8qPg==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/blob@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/blob@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3652,7 +3664,7 @@ packages:
         optional: true
 
   '@vite-hub/box@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/box@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-K7FcZdLjgR17COTC5i7b/9GNXsGsOhSDDgbi14tYXFMWHFtBG3MyGRUdbdOhWjS0MI6yqpDhlbyzj1yy/I1tpw==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/box@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/box@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3674,7 +3686,7 @@ packages:
         optional: true
 
   '@vite-hub/browser@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/browser@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-UPlsD7h2neImQ9ywbJwG4CEMfhPar9nSZPdda1W4m5Qqr/KqCdL1m5HMe9E/ZC6KwXkLQuiEZ1jTM04J5hBSmg==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/browser@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/browser@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.15.0'}
     peerDependencies:
@@ -3684,7 +3696,7 @@ packages:
         optional: true
 
   '@vite-hub/channels@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/channels@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-oZV9g5Kay6JaAc358Mzmtmzz6/Yp6+OxagB80iLynrymc//IiVzHwsw73gGLpSFLwX1CxE5PKH1y+hBcKBLPvw==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/channels@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/channels@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3694,7 +3706,7 @@ packages:
         optional: true
 
   '@vite-hub/cli@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/cli@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-pixrR4a65qfuJEGpWd6c/89jrcZMt3KNTxlGL8Us9y/ONzTD95pTH4gCpdzywhOv6ncLHlLtRlIv1k+mz8blAQ==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/cli@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/cli@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     hasBin: true
@@ -3718,7 +3730,7 @@ packages:
         optional: true
 
   '@vite-hub/database@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-DlLunlBrTQLl0OMs59SMRfdZYfTB8QAGJkga3RzVhW77eLCL5EoCzToWLdzgUk3WOnVpyJ9O3AVXflZFfJy6Bg==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3730,7 +3742,7 @@ packages:
         optional: true
 
   '@vite-hub/email@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/email@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-rLDYb8bmPAvmckAYdHqPHvqCr7zxvKbVEQ75DUPiHbqJ/6eDyHbisKTSs4VBwxuSN5biwoMo9GdqbPKdiPLHpQ==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/email@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/email@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3740,7 +3752,7 @@ packages:
         optional: true
 
   '@vite-hub/env@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/env@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-SKeS3NM3CKvqMArlEFRNsqvuDVvKAsJHBAOpw15cyOEwhZQUma2/R15qKAIKQYB6ke3PMRIweVL8PnsavN4y1g==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/env@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/env@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3750,12 +3762,12 @@ packages:
         optional: true
 
   '@vite-hub/history@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/history@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-dXr/lq1LcoAETaUg4tlr/ZmfU5ClalU3Ygzi1tUqwJhB9ddz50ra6eY9QsRj6nhhrdiFLRGTM8zmsJVPd/B44w==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/history@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/history@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
 
   '@vite-hub/kv@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/kv@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-C2cs8iXiBAnfKvispVbfaRRyXLo2hLcIW260QBMS8T5S2sD+9J0V1Xjn++O+ZaiEKOk77+VdsI7SfRKsxUK4kA==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/kv@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/kv@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3768,7 +3780,7 @@ packages:
         optional: true
 
   '@vite-hub/markdown-template@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/markdown-template@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-BUfHH8Ul/lEeonkhMM/d8OhRT716h7k0WcXTKDVxC2PL/ZkPWHnV9beEIKN/2R45bkLEdW9LUe6WZuYLALzweA==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/markdown-template@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/markdown-template@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3778,7 +3790,7 @@ packages:
         optional: true
 
   '@vite-hub/queue@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/queue@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-dUsZ/0Gj8pk+csw4axEm9eVFZWBCl0UK6A2J7GDEKQ61gIdv6rLe+Nns0nQCmKja5KnVORD/+un/8ka8fH6CLw==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/queue@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/queue@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3788,7 +3800,7 @@ packages:
         optional: true
 
   '@vite-hub/rate-limit@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/rate-limit@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-dD0yb+IxWxbK/Vn0hfX1LQ2hs64W3AKWGMB1Ph0YHFcaj/8UbWd/L2vTHU9MJOwI758cPy0UoB+P+8mzoAw82A==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/rate-limit@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/rate-limit@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3798,7 +3810,7 @@ packages:
         optional: true
 
   '@vite-hub/realtime@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/realtime@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-UMdFHIgGM1xnMffx5AhpUoIHkJRL/HBP7P0SCAuk93BIFUrLBaNDs6jbD4LNhYUZNdqkuhNfrWnx+unMav1b8g==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/realtime@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/realtime@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.15.0'}
     peerDependencies:
@@ -3811,12 +3823,12 @@ packages:
         optional: true
 
   '@vite-hub/runtime@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/runtime@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-MCPdBmdOlTFk1i/7wtjyq/pwWkP2ES4teFWH+Q1yDK62WgvAuMo1jGBRsX9NLvqhpX9km7tsTMSsT+cPL/GgQg==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/runtime@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/runtime@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
 
   '@vite-hub/sandbox@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/sandbox@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-0nBGn2wzFGHla22GjOBz8sbyoh4UmHOTUXmbMPBtG14WDg+OuR1YHkP5K4idvpssC02JTh/iiu11f7a2LTLDew==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/sandbox@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/sandbox@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3832,7 +3844,7 @@ packages:
         optional: true
 
   '@vite-hub/schedule@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/schedule@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-w3EboE8saMVRkWAQk3oiG/TyhWQLYlLlBrT7hgw4AmgeH2IaoKhvyCSjxuD9YA2YeL+7AadvF82gw35dvDyYqg==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/schedule@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/schedule@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.15.0'}
     peerDependencies:
@@ -3845,17 +3857,17 @@ packages:
         optional: true
 
   '@vite-hub/shell@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/shell@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-+Mr2nDNvSQyorNypZpcROM2ggdNuwoUqPwddBU8dBg3Ia4bEPWDkWrjpCB4w01eZmRGIUgM/j9etYstRvuRMag==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/shell@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/shell@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
 
   '@vite-hub/source@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/source@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-mgmZ+lsjwMNH+GIWKRpyvVzU6HMrqBCuuvYegaVyXCAIaP55Jk2YkjrVRLIDtr61MHqEN6hEOmax6TyLo/anBg==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/source@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/source@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
 
   '@vite-hub/workflow@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/workflow@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-imKUkAgxwSl/Kg1ZmqKgqg/B1v+ImMzwL899ZTEuS3HdvEkZvdt9sYfWoq5YAevWlOjukqrIZLM/M6jvS2b/7Q==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/workflow@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/workflow@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -3877,7 +3889,7 @@ packages:
         optional: true
 
   '@vite-hub/workspace@https://pkg.pr.new/vite-hub/vitehub/@vite-hub/workspace@60daf93a6257b7414253402c1b90eacd01a559c1':
-    resolution: {integrity: sha512-g4gcNPTs5qJi8ef2U1bdsYfSD0d1r7PIeSzOYf49lchk/Gc4p9BlhXT24hdwUYzSvJXlq7qgs3+IxACxsjBsEQ==, tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/workspace@60daf93a6257b7414253402c1b90eacd01a559c1}
+    resolution: {tarball: https://pkg.pr.new/vite-hub/vitehub/@vite-hub/workspace@60daf93a6257b7414253402c1b90eacd01a559c1}
     version: 0.0.1
     engines: {node: '>=24.0.0'}
     peerDependencies:
@@ -5220,6 +5232,9 @@ packages:
 
   errx@0.1.0:
     resolution: {integrity: sha512-fZmsRiDNv07K6s2KkKFTiD2aIvECa7++PKyD5NC32tpRw46qZA3sOz+aM+/V9V0GDHxVTKLziveV4JhzBHDp9Q==}
+
+  errx@0.1.2:
+    resolution: {integrity: sha512-chfpPHmCerdo/rXr/nNvPZRkV4WwDRwzwnsJ0Uzz3tVi8Z41tDctRjduYy1138ii77AFlts1qvWtX3g/Acg91Q==}
 
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
@@ -9869,7 +9884,7 @@ snapshots:
     dependencies:
       '@iconify/types': 2.0.0
 
-  '@iconify/collections@1.0.714':
+  '@iconify/collections@1.0.723':
     dependencies:
       '@iconify/types': 2.0.0
 
@@ -10484,6 +10499,30 @@ snapshots:
       - rolldown
       - unplugin
 
+  '@nuxt/devtools-kit@3.4.1(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))':
+    dependencies:
+      '@nuxt/kit': 4.5.2(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
+      execa: 8.0.1
+      vite: 8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - magic-string
+      - magicast
+      - oxc-parser
+      - rolldown
+      - unplugin
+
+  '@nuxt/devtools-kit@3.4.1(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))':
+    dependencies:
+      '@nuxt/kit': 4.5.2(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
+      execa: 8.0.1
+      vite: 8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - magic-string
+      - magicast
+      - oxc-parser
+      - rolldown
+      - unplugin
+
   '@nuxt/devtools-kit@4.0.0-alpha.8(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))':
     dependencies:
       '@nuxt/kit': 4.5.0(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
@@ -10622,14 +10661,39 @@ snapshots:
       - vite
       - webpack
 
-  '@nuxt/icon@2.3.1(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))':
+  '@nuxt/icon@2.5.0(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))':
     dependencies:
-      '@iconify/collections': 1.0.714
+      '@iconify/collections': 1.0.723
       '@iconify/types': 2.0.0
       '@iconify/utils': 3.1.4
       '@iconify/vue': 5.0.1(vue@3.5.40(typescript@6.0.3))
-      '@nuxt/devtools-kit': 3.2.4(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
-      '@nuxt/kit': 4.5.0(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
+      '@nuxt/devtools-kit': 3.4.1(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+      '@nuxt/kit': 4.5.2(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
+      consola: 3.4.2
+      local-pkg: 1.2.1
+      mlly: 1.8.2
+      ohash: 2.0.11
+      picomatch: 4.0.5
+      std-env: 4.2.0
+      tinyglobby: 0.2.17
+      ufo: 1.6.4
+    transitivePeerDependencies:
+      - magic-string
+      - magicast
+      - oxc-parser
+      - rolldown
+      - unplugin
+      - vite
+      - vue
+
+  '@nuxt/icon@2.5.0(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))':
+    dependencies:
+      '@iconify/collections': 1.0.723
+      '@iconify/types': 2.0.0
+      '@iconify/utils': 3.1.4
+      '@iconify/vue': 5.0.1(vue@3.5.40(typescript@6.0.3))
+      '@nuxt/devtools-kit': 3.4.1(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+      '@nuxt/kit': 4.5.2(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
       consola: 3.4.2
       local-pkg: 1.2.1
       mlly: 1.8.2
@@ -10764,6 +10828,66 @@ snapshots:
       - rolldown
       - unplugin
 
+  '@nuxt/kit@4.5.2(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))':
+    dependencies:
+      c12: 3.3.4(magicast@0.5.3)
+      consola: 3.4.2
+      defu: 6.1.7
+      destr: 2.0.5
+      errx: 0.1.2
+      exsolve: 1.1.1
+      ignore: 7.0.6
+      jiti: 2.7.0
+      klona: 2.0.6
+      mlly: 1.8.2
+      nostics: 1.2.0
+      ohash: 2.0.11
+      pathe: 2.0.3
+      pkg-types: 2.3.1
+      rc9: 3.0.1
+      scule: 1.3.0
+      tinyglobby: 0.2.17
+      ufo: 1.6.4
+      unctx: 3.0.0(magic-string@0.30.21)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
+      untyped: 2.0.0
+      verkit: 0.3.2
+    transitivePeerDependencies:
+      - magic-string
+      - magicast
+      - oxc-parser
+      - rolldown
+      - unplugin
+
+  '@nuxt/kit@4.5.2(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))':
+    dependencies:
+      c12: 3.3.4(magicast@0.5.3)
+      consola: 3.4.2
+      defu: 6.1.7
+      destr: 2.0.5
+      errx: 0.1.2
+      exsolve: 1.1.1
+      ignore: 7.0.6
+      jiti: 2.7.0
+      klona: 2.0.6
+      mlly: 1.8.2
+      nostics: 1.2.0
+      ohash: 2.0.11
+      pathe: 2.0.3
+      pkg-types: 2.3.1
+      rc9: 3.0.1
+      scule: 1.3.0
+      tinyglobby: 0.2.17
+      ufo: 1.6.4
+      unctx: 3.0.0(magic-string@1.1.0)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
+      untyped: 2.0.0
+      verkit: 0.3.2
+    transitivePeerDependencies:
+      - magic-string
+      - magicast
+      - oxc-parser
+      - rolldown
+      - unplugin
+
   '@nuxt/nitro-server-nightly@5.0.0-29746924.1554961a(ec6b7b4f6888cb40fca3fca69b1a8467)':
     dependencies:
       '@ampproject/remapping': 2.3.0
@@ -10884,7 +11008,7 @@ snapshots:
       '@floating-ui/dom': 1.8.0
       '@iconify/vue': 5.0.1(vue@3.5.40(typescript@6.0.3))
       '@nuxt/fonts': 0.14.0(@azure/identity@4.13.1)(@azure/storage-blob@12.33.0)(@netlify/blobs@10.7.9)(@vercel/blob@2.6.1)(@vercel/functions@3.7.5(@aws-sdk/credential-provider-web-identity@3.972.49)(ws@8.21.0))(aws4fetch@1.0.20)(db0@0.3.4(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260724.1)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)(kysely@0.29.4)(sql.js@1.14.1)))(esbuild@0.28.1)(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(rollup@4.62.2)(uploadthing@7.7.4(express@5.2.1)(h3@2.0.1-rc.25(crossws@0.4.10(srvx@0.11.22)))(tailwindcss@4.3.3))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
-      '@nuxt/icon': 2.3.1(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))
+      '@nuxt/icon': 2.5.0(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))
       '@nuxt/kit': 4.5.0(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
       '@nuxt/schema': 4.5.0
       '@nuxtjs/color-mode': 4.0.1(magic-string@0.30.21)(magicast@0.5.3)(oxc-parser@0.140.0)(rolldown@1.2.0)(unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.2.0)(rollup@4.62.2)(vite@8.1.5(@types/node@25.9.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
@@ -14025,6 +14149,8 @@ snapshots:
   error-stack-parser-es@2.0.1: {}
 
   errx@0.1.0: {}
+
+  errx@0.1.2: {}
 
   es-define-property@1.0.1: {}
 
