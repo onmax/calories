@@ -3,7 +3,7 @@ import { generateText } from "ai";
 import { eq } from "drizzle-orm";
 import * as v from "valibot";
 import { currentInputAttachments, defineAgent, resolveAttachmentData } from "vite-hub/agent";
-import { audioBytes, cost, db, transcribe } from "vite-hub/agent/capabilities";
+import { audioBytes, db, transcribe, usage } from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
 import { blob } from "vite-hub/blob";
 import { renderTemplate } from "#vitehub/templates";
@@ -29,7 +29,7 @@ function dashboardUrl(event: { runtime?: { request?: Request } }) {
 export default defineAgent({
   capabilities: [
     db({ mode: "write" }),
-    cost(),
+    usage(),
     transcribe({
       async execute({ audio }) {
         const { text } = await generateText({
@@ -63,9 +63,7 @@ export default defineAgent({
   },
   driver: {
     maxRetries: 0,
-    model: () => openRouter()("z-ai/glm-5v-turbo", {
-      usage: { include: true },
-    }),
+    model: () => openRouter()("z-ai/glm-5v-turbo"),
     output: { schema: caloriesOutput },
   },
   hooks: {

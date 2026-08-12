@@ -1,4 +1,4 @@
-import { env, type EnvViteUserConfig } from "vite-hub/env";
+import { env } from "vite-hub/env";
 
 export default defineNuxtConfig({
   compatibilityDate: "2026-07-24",
@@ -67,7 +67,7 @@ export default defineNuxtConfig({
         },
       },
     },
-  } satisfies EnvViteUserConfig,
+  },
   devtools: { enabled: false },
   nitro: {
     cloudflare: {
@@ -75,19 +75,9 @@ export default defineNuxtConfig({
         observability: { enabled: true },
       },
     },
-    typescript: {
-      tsConfig: {
-        compilerOptions: { types: ["@cloudflare/workers-types"] },
-        include: ["../.vitehub/types/**/*.d.ts"],
-      },
-    },
   },
   typescript: {
     strict: true,
-    tsConfig: {
-      compilerOptions: { types: ["@cloudflare/workers-types"] },
-      include: ["../.vitehub/types/**/*.d.ts"],
-    },
     typeCheck: true,
   },
 });
