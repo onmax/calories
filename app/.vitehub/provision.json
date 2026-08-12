@@ -1,8 +1,10 @@
 {
   "cloudflare": {
     "d1": {
-      "$nuxt": "d3907c3b-de95-4bea-b7a8-1905b7f57d7a",
       "default": "d3907c3b-de95-4bea-b7a8-1905b7f57d7a"
+    },
+    "d1Nuxt": {
+      "vitehub-calories": "d3907c3b-de95-4bea-b7a8-1905b7f57d7a"
     }
   }
 }
