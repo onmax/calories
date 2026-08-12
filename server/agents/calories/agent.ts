@@ -52,7 +52,6 @@ export default defineAgent({
       botToken: () => useServerEnv().telegram.botToken,
       webhookSecret: () => useServerEnv().telegram.webhookSecret || false,
       messages: {
-        concurrency: "queue",
         delivery: "manual",
         durable: true,
         fallbackStreamingPlaceholderText: "Thinking…",
