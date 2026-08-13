@@ -1,7 +1,7 @@
-diff --git a/dist/routes-BWPMAKjV.js b/dist/routes-BWPMAKjV.js
-index 553391f63105d2678539c66b7e55ed05c7839fe4..bc7d42c9eae5b56ccc3ebec3884441715285e98c 100644
---- a/dist/routes-BWPMAKjV.js
-+++ b/dist/routes-BWPMAKjV.js
+diff --git a/dist/routes-Baw5LTJj.js b/dist/routes-Baw5LTJj.js
+index 2d16294234259eb1be39f3282d28ca96404a87e5..6d6e991a23bb9d3f9c2f4fd44762050ed6686ae4 100644
+--- a/dist/routes-Baw5LTJj.js
++++ b/dist/routes-Baw5LTJj.js
 @@ -1773,6 +1773,43 @@ async function chatMessageParts(message, options = {}) {
  	}
  	return parts;
@@ -46,7 +46,7 @@ index 553391f63105d2678539c66b7e55ed05c7839fe4..bc7d42c9eae5b56ccc3ebec388444171
  function chatMessageMetadata(thread, message, messageContext) {
  	const platformChannelId = thread.adapter.channelIdFromThreadId(message.threadId);
  	return objectWithoutUndefined({ chat: objectWithoutUndefined({
-@@ -1779,6 +1816,7 @@ function chatMessageMetadata(thread, message, messageContext) {
+@@ -1780,6 +1817,7 @@ function chatMessageMetadata(thread, message, messageContext) {
  		editedAt: isoDate(message.metadata.editedAt),
  		isMention: message.isMention,
  		messageId: message.id,
@@ -54,7 +54,7 @@ index 553391f63105d2678539c66b7e55ed05c7839fe4..bc7d42c9eae5b56ccc3ebec388444171
  		platform: objectWithoutUndefined({
  			channelId: platformChannelId,
  			threadId: message.threadId
-@@ -1793,7 +1831,7 @@ async function chatSdkMessageToUiMessage(message, metadata, options) {
+@@ -1794,7 +1832,7 @@ async function chatSdkMessageToUiMessage(message, metadata, options) {
  		createdAt: isoDate(message.metadata.dateSent),
  		id: message.id,
  		...metadata ? { metadata } : {},
@@ -63,20 +63,3 @@ index 553391f63105d2678539c66b7e55ed05c7839fe4..bc7d42c9eae5b56ccc3ebec388444171
  		role: message.author.isMe ? "assistant" : "user"
  	};
  }
-diff --git a/dist/src-BxGwXlbm.js b/dist/src-BxGwXlbm.js
-index 267ebee14d6ccaf8ba36c62cc2954d9f69650d01..d0c647021492e90401f280b951eafc062db34d42 100644
---- a/dist/src-BxGwXlbm.js
-+++ b/dist/src-BxGwXlbm.js
-@@ -708,4 +708,6 @@ async function runAgentAsWorkflow(agent, context, input, options = {}) {
--	const { getWorkflowRuntimeConfig, runWithWorkflowRuntimeEvent } = await loadAgentWorkflowRuntimeStateModule();
--	const workflowConfig = getWorkflowRuntimeConfig();
--	if ("discoveryDefault" in binding) {
--		if (!workflowConfig) return void 0;
-+	const { getWorkflowRuntimeConfig, runWithWorkflowRuntimeEvent, setWorkflowRuntimeConfig } = await loadAgentWorkflowRuntimeStateModule();
-+	let workflowConfig = getWorkflowRuntimeConfig();
-+	if ("discoveryDefault" in binding && !workflowConfig) {
-+		if (!cloudflareEnv) return void 0;
-+		workflowConfig = { provider: "cloudflare" };
-+		setWorkflowRuntimeConfig(workflowConfig);
-@@ -724,0 +727 @@ async function runAgentAsWorkflow(agent, context, input, options = {}) {
-+	if (input.context?.["vitehub.agent.require-workflow"] === true) delete workflowInput.timeout;
