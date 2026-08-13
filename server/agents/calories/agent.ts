@@ -1,4 +1,5 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import { generateText } from "ai";
 import { eq } from "drizzle-orm";
 import * as v from "valibot";
@@ -10,12 +11,13 @@ import { renderTemplate } from "#vitehub/templates";
 import { useServerEnv } from "#vitehub/env/server";
 import database, * as schema from "../../databases/config";
 
-const caloriesOutput = v.object({
+const caloriesOutputSchema = v.object({
   text: v.pipe(v.string(), v.description("Concise Markdown response for the user")),
   mealId: v.optional(v.pipe(v.string(), v.description("Exact affected meal ID after a successful insert or update"))),
 });
+const caloriesOutput = toStandardJsonSchema(caloriesOutputSchema);
 
-type CaloriesOutput = v.InferOutput<typeof caloriesOutput>;
+type CaloriesOutput = v.InferOutput<typeof caloriesOutputSchema>;
 
 function openRouter() {
   return createOpenRouter({ apiKey: useServerEnv().openrouter.apiKey });

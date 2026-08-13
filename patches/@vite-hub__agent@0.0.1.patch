@@ -1,7 +1,7 @@
-diff --git a/dist/routes-CRNIoIAd.js b/dist/routes-CRNIoIAd.js
-index 15d3d6e7a6042e4b1d08b681f33edb59bbefa62f..abf0f12ec66120d54727a8fc31ea601dfd81afb6 100644
---- a/dist/routes-CRNIoIAd.js
-+++ b/dist/routes-CRNIoIAd.js
+diff --git a/dist/routes-DgalTaiK.js b/dist/routes-DgalTaiK.js
+index f20b5a85439e942ab785148b4f8bc256b73ecace..0be19f38522f4ad64fcba9043e4f0f1bbcc417c2 100644
+--- a/dist/routes-DgalTaiK.js
++++ b/dist/routes-DgalTaiK.js
 @@ -1773,6 +1773,43 @@ async function chatMessageParts(message, options = {}) {
  	}
  	return parts;

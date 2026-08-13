@@ -28,6 +28,7 @@
     "@internationalized/date": "3.12.2",
     "@nuxt/ui": "4.10.0",
     "@openrouter/ai-sdk-provider": "3.0.0",
+    "@valibot/to-json-schema": "1.7.1",
     "@vite-hub/database": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/database@cad3b4c",
     "ai": "7.0.34",
     "drizzle-orm": "0.45.2",
