@@ -1,7 +1,7 @@
-diff --git a/dist/routes-Baw5LTJj.js b/dist/routes-Baw5LTJj.js
-index 2d16294234259eb1be39f3282d28ca96404a87e5..6d6e991a23bb9d3f9c2f4fd44762050ed6686ae4 100644
---- a/dist/routes-Baw5LTJj.js
-+++ b/dist/routes-Baw5LTJj.js
+diff --git a/dist/routes-CRNIoIAd.js b/dist/routes-CRNIoIAd.js
+index 15d3d6e7a6042e4b1d08b681f33edb59bbefa62f..abf0f12ec66120d54727a8fc31ea601dfd81afb6 100644
+--- a/dist/routes-CRNIoIAd.js
++++ b/dist/routes-CRNIoIAd.js
 @@ -1773,6 +1773,43 @@ async function chatMessageParts(message, options = {}) {
  	}
  	return parts;
