@@ -3,7 +3,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import { generateText } from "ai";
 import { eq } from "drizzle-orm";
 import * as v from "valibot";
-import { currentInputAttachments, defineAgent, resolveAttachmentData } from "vite-hub/agent";
+import { currentInputAttachments, defineAgent, defineCapability, resolveAttachmentData } from "vite-hub/agent";
 import { audioBytes, db, transcribe, usage } from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
 import { blob } from "vite-hub/blob";
@@ -11,13 +11,130 @@ import { renderTemplate } from "#vitehub/templates";
 import { useServerEnv } from "#vitehub/env/server";
 import database, * as schema from "../../databases/config";
 
-const caloriesOutputSchema = v.object({
-  text: v.pipe(v.string(), v.description("Concise Markdown response for the user")),
-  mealId: v.optional(v.pipe(v.string(), v.description("Exact affected meal ID after a successful insert or update"))),
+const mealDraftSchema = v.object({
+  caption: v.pipe(v.string(), v.minLength(1)),
+  confidence: v.picklist(["low", "medium", "high", "user-stated"]),
+  createdAt: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  id: v.pipe(v.string(), v.minLength(1)),
+  items: v.array(v.object({
+    calories: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    name: v.pipe(v.string(), v.minLength(1)),
+    portion: v.pipe(v.string(), v.minLength(1)),
+    protein: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  })),
+  totalCalories: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  totalProtein: v.pipe(v.number(), v.integer(), v.minValue(0)),
 });
-const caloriesOutput = toStandardJsonSchema(caloriesOutputSchema);
 
-type CaloriesOutput = v.InferOutput<typeof caloriesOutputSchema>;
+const mealPresentationSchema = v.object({
+  meal: mealDraftSchema,
+});
+const mealPresentationInputSchema = toStandardJsonSchema(mealPresentationSchema);
+
+type MealPresentationResult = {
+  approved: boolean;
+  mealId?: string;
+  reason?: string;
+  text: string;
+};
+
+declare global {
+  interface ViteHubAgentFinishExtensions {
+    "meal-presentation": MealPresentationResult | undefined;
+  }
+}
+
+function rejectedPresentation(reason: string): MealPresentationResult {
+  return {
+    approved: false,
+    reason,
+    text: "I couldn't verify and save that meal. Please resend it.",
+  };
+}
+
+const mealPresentation = defineCapability({
+  id: "meal-presentation",
+  configure(context) {
+    context.tools.add({
+      present_meal: {
+        name: "present_meal",
+        description: "Validate and persist one complete meal. This is the only way to claim that a meal was saved.",
+        inputSchema: mealPresentationInputSchema,
+        async execute(input) {
+          const previous = context.context.get<MealPresentationResult>("meal-presentation.result");
+          if (previous) return previous;
+
+          const proposal = v.safeParse(mealPresentationSchema, input);
+          if (!proposal.success) {
+            const result = rejectedPresentation("The proposed meal was incomplete.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
+
+          const { meal } = proposal.output;
+          const itemCalories = meal.items.reduce((sum, item) => sum + item.calories, 0);
+          const itemProtein = meal.items.reduce((sum, item) => sum + item.protein, 0);
+          if (itemCalories !== meal.totalCalories || itemProtein !== meal.totalProtein) {
+            const result = rejectedPresentation("The item totals did not equal the meal totals.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
+
+          const photos = currentInputAttachments(
+            context.input.messages(),
+            context.run?.messageId,
+          ).filter((part) => part.type === "image");
+          const photoPath = photos.length ? `meals/${meal.id}/original` : undefined;
+
+          try {
+            for (const [index, photo] of photos.entries()) {
+              const body = await resolveAttachmentData(photo);
+              if (!body) throw new Error("Telegram photo data was unavailable after analysis.");
+              const pathname = index === 0 ? photoPath! : `meals/${meal.id}/photos/${index}`;
+              const [storageError] = await blob.put(pathname, body, {
+                access: "private",
+                contentType: photo.mediaType,
+              });
+              if (storageError) throw storageError;
+            }
+
+            const createdAt = meal.createdAt === undefined ? undefined : new Date(meal.createdAt);
+            await database.insert(schema.meals).values({
+              ...meal,
+              createdAt,
+              photoPath,
+            }).onConflictDoUpdate({
+              set: {
+                caption: meal.caption,
+                confidence: meal.confidence,
+                ...(createdAt ? { createdAt } : {}),
+                items: meal.items,
+                ...(photoPath ? { photoPath } : {}),
+                totalCalories: meal.totalCalories,
+                totalProtein: meal.totalProtein,
+              },
+              target: schema.meals.id,
+            });
+          } catch (error) {
+            console.error("[calories] Meal presentation rejected during persistence", error);
+            const result = rejectedPresentation("The database or photo store rejected the proposed meal.");
+            context.context.set("meal-presentation.result", result);
+            return result;
+          }
+
+          const result: MealPresentationResult = {
+            approved: true,
+            mealId: meal.id,
+            text: "Meal saved, but I couldn't prepare the summary.",
+          };
+          context.context.set("meal-presentation.result", result);
+          return result;
+        },
+      },
+    });
+    context.finish.provide(() => context.context.get<MealPresentationResult>("meal-presentation.result"));
+  },
+});
 
 function openRouter() {
   return createOpenRouter({ apiKey: useServerEnv().openrouter.apiKey });
@@ -31,6 +148,7 @@ function dashboardUrl(event: { runtime?: { request?: Request } }) {
 export default defineAgent({
   capabilities: [
     db({ mode: "write" }),
+    mealPresentation,
     usage(),
     transcribe({
       async execute({ audio }) {
@@ -66,45 +184,27 @@ export default defineAgent({
   driver: {
     maxRetries: 0,
     model: () => openRouter()("z-ai/glm-5v-turbo"),
-    output: { schema: caloriesOutput },
   },
   hooks: {
     "agent:error"(event) {
       console.error("[calories] Agent invocation failed", event.error);
+      const presentation = event.extensions.get("meal-presentation");
+      if (presentation) return event.reply(presentation.text);
       return event.reply("Sorry, I couldn't process that message.");
     },
     async "agent:finish"(event) {
       const usageCost = event.invocation.usage?.cost?.display ?? "Cost unavailable";
-      const result = event.result as CaloriesOutput;
-      const photos = currentInputAttachments(
-        event.input.messages ?? [],
-        event.invocation.run?.messageId,
-      ).filter((part) => part.type === "image");
+      const presentation = event.extensions.get("meal-presentation");
+      const text = presentation?.approved
+        ? event.text ?? presentation.text
+        : presentation?.text ?? event.text;
 
-      if (result.mealId && photos.length) {
-        const photoPath = `meals/${result.mealId}/original`;
-        for (const [index, photo] of photos.entries()) {
-          const body = await resolveAttachmentData(photo);
-          if (!body) throw new Error("Telegram photo data was unavailable after analysis.");
-          const pathname = index === 0 ? photoPath : `meals/${result.mealId}/photos/${index}`;
-          const [storageError] = await blob.put(pathname, body, {
-            access: "private",
-            contentType: photo.mediaType,
-          });
-          if (storageError) throw storageError;
-        }
-        await database
-          .update(schema.meals)
-          .set({ photoPath })
-          .where(eq(schema.meals.id, result.mealId));
-      }
-
-      if (result.mealId && usageCost !== "Cost unavailable") {
+      if (presentation?.mealId && usageCost !== "Cost unavailable") {
         try {
           await database
             .update(schema.meals)
             .set({ usageCost })
-            .where(eq(schema.meals.id, result.mealId));
+            .where(eq(schema.meals.id, presentation.mealId));
         } catch (error) {
           // A dashboard metric must never block the Telegram reply.
           console.error("[calories] Failed to record usage cost", error);
@@ -113,7 +213,7 @@ export default defineAgent({
       return event.reply(await renderTemplate("reply", {
         cost: usageCost,
         dashboardUrl: dashboardUrl(event) ?? "",
-        text: result.text,
+        text: text ?? "Done.",
       }));
     },
   },
