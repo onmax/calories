@@ -8,7 +8,7 @@ import { telegram } from "vite-hub/agent/channels";
 import { createChannelWebhookRouteHandler } from "vite-hub/_internal/agent/server/internal";
 import { createLibsqlAgentState } from "vite-hub/agent/state/sqlite";
 
-test("Telegram replies include the original photo and duplicate updates run once", async () => {
+test("Telegram replies include the original photo context and duplicate updates run once", async () => {
   const directory = await mkdtemp(join(tmpdir(), "calories-telegram-"));
   const state = createLibsqlAgentState({ url: `file:${join(directory, "state.db")}` });
   const originalFetch = globalThis.fetch;
@@ -41,8 +41,8 @@ test("Telegram replies include the original photo and duplicate updates run once
       driver: {
         async run(context) {
           const message = context.messages[0];
-          const image = message.parts.find((part) => part.type === "image");
-          invocations.push({ bytes: new Uint8Array(await image.fetchData()), message });
+          const replyImage = message.parts.find((part) => part.type === "data-chat-reply-attachment");
+          invocations.push({ message, replyImage });
           return { text: "ok" };
         },
       },
@@ -82,11 +82,17 @@ test("Telegram replies include the original photo and duplicate updates run once
     await waitFor((pending) => handler(request(), "telegram", { agentName: "calories", state, waitUntil: (task) => pending.push(task) }));
 
     assert.equal(invocations.length, 1);
-    assert.deepEqual([...invocations[0].bytes], [0xff, 0xd8, 0xff, 0xd9]);
-    assert.equal(invocations[0].message.parts.map((part) => part.text || "").join(""), "<reply_to_message>\nCoffee with milk\n</reply_to_message>\n<user_message>\nI took it at 10\n</user_message>");
+    assert.deepEqual(invocations[0].replyImage.data.attachment, {
+      fetchMetadata: { fileId: "coffee", fileUniqueId: "coffee-1" },
+      id: "attachment-1",
+      mediaType: "image/jpeg",
+      size: 4,
+      type: "image",
+    });
+    assert.equal(invocations[0].message.parts.find((part) => part.type === "data-chat-reply-text").data.text, "Coffee with milk");
     assert.deepEqual(invocations[0].message.metadata.chat.replyTo, {
       attachmentCount: 1,
-      author: { fullName: "Max", isBot: false, userId: "42", userName: "Max" },
+      author: { fullName: "Max", isBot: false, isMe: false, userId: "42", userName: "Max" },
       dateSent: "2025-07-20T08:26:40.000Z",
       messageId: "42:19",
       text: "Coffee with milk",

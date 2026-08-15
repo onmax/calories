@@ -11,7 +11,7 @@ import { createLibsqlAgentState } from "vite-hub/agent/state/sqlite";
 
 test("durable Telegram photos start a Cloudflare Workflow", async () => {
   const directory = await mkdtemp(join(tmpdir(), "calories-durable-channel-"));
-  const state = createLibsqlAgentState({ url: `file:${join(directory, "state.db")}` });
+  const state = Object.assign(createLibsqlAgentState({ url: `file:${join(directory, "state.db")}` }), { workflowCustody: true });
   await state.connect();
   const originalFetch = globalThis.fetch;
   const originalCloudflareEnv = globalThis.__env__;
