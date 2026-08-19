@@ -1,9 +1,13 @@
-import { and, desc, eq, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte, or } from "drizzle-orm";
 import { defineEventHandler, getQuery } from "h3";
 import database, * as schema from "../databases/config";
+import { copenhagenDayRange } from "../utils/copenhagen-day";
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event);
+  const focus = typeof query.focus === "string" && query.focus.length <= 128
+    ? query.focus
+    : undefined;
   const limit = Math.min(Math.max(Number(query.limit) || 24, 1), 50);
   const [cursorTime, cursorId] =
     typeof query.cursor === "string" ? query.cursor.split("|") : [];
@@ -15,7 +19,16 @@ export default defineEventHandler(async (event) => {
           and(eq(schema.meals.createdAt, cursorDate), lt(schema.meals.id, cursorId)),
         )
       : undefined;
-  const meals = await database
+  const focusedMeal = focus
+    ? await database
+        .select({ createdAt: schema.meals.createdAt })
+        .from(schema.meals)
+        .where(eq(schema.meals.id, focus))
+        .limit(1)
+        .then((rows) => rows[0])
+    : undefined;
+  const focusedDay = focusedMeal ? copenhagenDayRange(focusedMeal.createdAt) : undefined;
+  const baseQuery = database
     .select({
       caption: schema.meals.caption,
       confidence: schema.meals.confidence,
@@ -29,14 +42,16 @@ export default defineEventHandler(async (event) => {
     })
     .from(schema.meals)
     .where(
-      olderThanCursor
+      focusedDay
+        ? and(gte(schema.meals.createdAt, focusedDay[0]), lt(schema.meals.createdAt, focusedDay[1]))
+        : olderThanCursor
         ? and(lte(schema.meals.createdAt, new Date()), olderThanCursor)
         : lte(schema.meals.createdAt, new Date()),
     )
-    .orderBy(desc(schema.meals.createdAt), desc(schema.meals.id))
-    .limit(limit + 1);
+    .orderBy(desc(schema.meals.createdAt), desc(schema.meals.id));
+  const meals = focusedDay ? await baseQuery : await baseQuery.limit(limit + 1);
 
-  const page = meals.slice(0, limit);
+  const page = focusedDay ? meals : meals.slice(0, limit);
   const lastMeal = page.at(-1);
 
   return {
@@ -61,7 +76,7 @@ export default defineEventHandler(async (event) => {
       usageCost: meal.usageCost ?? undefined,
     })),
     nextCursor:
-      meals.length > limit && lastMeal
+      !focusedDay && meals.length > limit && lastMeal
         ? `${lastMeal.createdAt.getTime()}|${lastMeal.id}`
         : undefined,
   };

@@ -8,10 +8,17 @@ import {
   type MealsPage,
 } from "~/utils/meal";
 
-const { data, error: initialError } = await useFetch<MealsPage>("/api/meals");
+const route = useRoute();
+const focusedMealId = typeof route.query.meal === "string" ? route.query.meal : undefined;
+const { data, error: initialError } = await useFetch<MealsPage>("/api/meals", {
+  query: focusedMealId ? { focus: focusedMealId } : undefined,
+});
 const meals = ref<Meal[]>(data.value?.meals ?? []);
 const nextCursor = ref(data.value?.nextCursor);
-const expandedDays = ref(new Set<string>());
+const focusedMeal = focusedMealId
+  ? meals.value.find((meal) => meal.id === focusedMealId)
+  : undefined;
+const expandedDays = ref(new Set(focusedMeal ? [dayKey(focusedMeal.createdAt)] : []));
 const loading = ref(false);
 const loadError = ref(initialError.value?.message);
 const sentinel = useTemplateRef<HTMLElement>("sentinel");
@@ -255,7 +262,7 @@ onBeforeUnmount(() => observer?.disconnect());
         </div>
       </section>
 
-      <div ref="sentinel" class="feed-sentinel" aria-live="polite">
+      <div v-if="!focusedMealId" ref="sentinel" class="feed-sentinel" aria-live="polite">
         <span v-if="loading">Loading older meals…</span>
         <UButton v-else-if="loadError" color="error" variant="soft" @click="loadMore">
           Try again
