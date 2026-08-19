@@ -1,0 +1,4 @@
+overrides:
+  "@chat-adapter/telegram": 4.38.1
+  "@vite-hub/agent": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/agent@4f5c25baa"
+  chat: 4.38.1
