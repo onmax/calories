@@ -1,69 +1,86 @@
 # ViteHub Calories
 
-A private-input, read-only meal log. Telegram accepts food photos from one numeric user ID, ViteHub handles the conversation, and the public Nuxt UI shows the resulting calorie estimates.
+A starter template for experimenting with a ViteHub Agent in a complete application. Send a meal by text, photo, or voice message; the Agent estimates its calories and protein, saves the result, and shows it in a Nuxt dashboard.
 
-Fork it, connect your own Cloudflare, OpenRouter, and Telegram credentials, then deploy the Worker.
+This is a working example, not a lesson or prescribed application structure. Fork it, replace the choices you do not want, and keep only the parts that help your application.
 
-## Runtime
+## Defaults, not requirements
 
-- Nuxt nightly, Vue, and Nuxt UI render the read-only dashboard as a client-side app.
-- Nitro v3 emits the Cloudflare Worker and serves both the UI and API.
-- ViteHub Agent connects Telegram to a model with database-write, blob, and usage-cost Capabilities, then renders the structured result through Chat SDK.
-- ViteHub Blob stores original photos privately in Cloudflare R2.
-- ViteHub Database uses generated local artifacts during development and a Cloudflare D1 binding in production.
-- The AI SDK sends images to GLM 5V Turbo and audio to Voxtral through OpenRouter using `OPENROUTER_API_KEY`.
+The included application uses:
 
-## Input lifecycle
+- Telegram as its input channel.
+- OpenRouter with `z-ai/glm-5v-turbo` for meal analysis and `mistralai/voxtral-small-24b-2507` for voice transcription.
+- Cloudflare Workers, D1, and R2 for deployment, meal data, and photos.
+- A Nuxt, Vue, and Nuxt UI dashboard.
 
-```text
-Telegram message
-  → allow numeric Telegram user ID
-  → show a temporary Chat SDK fallback
-  → transcribe audio through OpenRouter when present
-  → invoke the Agent through OpenRouter
-  → use ViteHub Capabilities to read or update D1 and R2
-  → replace the fallback with the result, usage cost, and dashboard URL
-```
+These are configuration choices. Change the channel, AI provider, models, Capabilities, storage, UI, or deployment provider to fit what you want to build.
 
-The same Agent Definition handles new meals, corrections, removals, and journal questions. Telegram supplies the current message, while D1 remains authoritative for entries and totals.
+ViteHub has deployment presets for Cloudflare, Vercel, Netlify, Deno, and Node, with supported provider adapters selected for each host. This repository's D1 database and deployment scripts are Cloudflare-specific, so adapt those when switching presets.
 
-## Project layout
+## Tech stack
 
-```text
-app/
-  pages/index.vue                 read-only meal dashboard
-  assets/main.css                 dashboard styling
-  utils/meal.ts                   meal types and display helpers
-server/
-  agents/calories/agent.ts        Telegram channel, structured output, persistence, and reply
-  templates/{meal,reply}.md       Markdown reply templates with runtime values
-  agents/calories/instructions.md model instructions
-  databases/config.ts             ViteHub/Drizzle D1 schema
-  databases/migrations/           generated D1 migrations
-  api/meals.get.ts                read-only dashboard query
-nuxt.config.ts                    ViteHub, Nuxt UI, environment, and Nitro
-```
+- [ViteHub](https://vitehub.dev) for the Agent Definition, Telegram channel, Capabilities, environment values, database, and Blob storage.
+- [Nuxt](https://nuxt.com), [Vue](https://vuejs.org), and [Nuxt UI](https://ui.nuxt.com) for the dashboard and API.
+- [AI SDK](https://ai-sdk.dev) with [OpenRouter](https://openrouter.ai) for the included models.
+- [Drizzle ORM](https://orm.drizzle.team) for meal persistence.
+- Nitro and Wrangler for the included Cloudflare Worker deployment.
 
-## Local development
+## Start experimenting
+
+Requirements: Node.js 24 or newer and pnpm 10.
 
 ```sh
+git clone https://github.com/vite-hub/calories.git
+cd calories
+pnpm install
 cp .env.example .env
-vp install
-vp run db:generate
-vp run dev
 ```
 
-The `.env` file needs a scoped Cloudflare D1 token plus the existing OpenRouter and Telegram tokens. `TELEGRAM_ALLOWED_USER_ID` is the numeric `message.from.id`, not a username or chat handle. Remote D1 migrations run only through the explicit deployment command below.
+Add your OpenRouter and Telegram credentials to `.env`:
 
-## Cloudflare deployment
+```dotenv
+OPENROUTER_API_KEY=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ALLOWED_USER_ID=
+```
 
-Create a Cloudflare D1 database named `vitehub-calories` or change `databaseName` in `nuxt.config.ts`, create the R2 bucket required by ViteHub Blob, then set the Worker secrets from `.env.example`:
+`TELEGRAM_ALLOWED_USER_ID` is the numeric Telegram `message.from.id`, not a username. The other variables in `.env.example` configure the included Cloudflare deployment and optional Telegram webhook protection.
+
+Apply the included migrations to the local database and start Nuxt:
 
 ```sh
-vp run db:migrate:remote
-vp run deploy
-vp run telegram:webhook
-vp run telegram:webhook -- --apply --confirm-origin https://your-deployed-origin.example
+pnpm db:migrate
+pnpm dev
 ```
 
-Set `VITEHUB_DEPLOYMENT_URL` in `.env` to the exact deployed HTTPS origin before running these commands; ViteHub will not infer a Worker or preview URL. `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET_TOKEN` must also be present. The first command inspects Telegram and prints the proposed route without mutating it, while the second applies only after the confirmation origin matches. `TELEGRAM_ALLOWED_USER_ID` is still required by the running app, and Telegram requires the user to start the bot once before it can learn the numeric ID or send a message back.
+Open <http://localhost:3000>. Telegram needs a public HTTPS deployment or tunnel before it can send webhook requests to the Agent.
+
+## Make it yours
+
+Start in `server/agents/calories/agent.ts`. It contains the Telegram channel, OpenRouter models, Capabilities, and reply behavior. The meal-specific instructions live in `server/agents/calories/instructions.md`, while `nuxt.config.ts` selects the deployment preset and storage configuration.
+
+Some useful first changes:
+
+- Replace `telegram(...)` with another channel or invoke the Agent from your own server route.
+- Replace `createOpenRouter(...)` and the model IDs with your preferred AI provider and models.
+- Remove the meal schema and persistence Capability, then add the tools and instructions your Agent needs.
+- Change `vitehub.preset` and provider-specific storage when deploying somewhere other than Cloudflare.
+- Replace the dashboard with your own Nuxt interface, another frontend, or no UI at all.
+
+## Deploy the included Cloudflare version
+
+Create your own D1 database and R2 bucket, complete the Cloudflare variables in `.env`, then run:
+
+```sh
+pnpm db:migrate:remote
+pnpm deploy
+```
+
+Set `VITEHUB_DEPLOYMENT_URL` to the deployed HTTPS origin before inspecting and applying the Telegram webhook:
+
+```sh
+pnpm telegram:webhook
+pnpm telegram:webhook -- --apply --confirm-origin https://your-deployed-origin.example
+```
+
+The first webhook command only shows the proposed change. The second applies it after the confirmation origin matches.
