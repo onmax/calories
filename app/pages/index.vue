@@ -5,22 +5,24 @@ import {
   getMealTitle,
   parseUsageCostUsd,
   type Meal,
-  type MealsPage,
 } from "~/utils/meal";
+import { useCollection } from "vite-hub/source/client";
+
+import type { meals as mealsCollection } from "../../server/collections/meals";
 
 const route = useRoute();
 const focusedMealId = typeof route.query.meal === "string" ? route.query.meal : undefined;
-const { data, error: initialError } = await useFetch<MealsPage>("/api/meals", {
-  query: focusedMealId ? { focus: focusedMealId } : undefined,
+const {
+  error: loadError,
+  hasMore,
+  items: meals,
+  loadMore,
+  pending: loading,
+} = useCollection<typeof mealsCollection>("/api/meals", {
+  limit: focusedMealId ? 50 : 24,
+  query: focusedMealId ? { meal: focusedMealId } : {},
 });
-const meals = ref<Meal[]>(data.value?.meals ?? []);
-const nextCursor = ref(data.value?.nextCursor);
-const focusedMeal = focusedMealId
-  ? meals.value.find((meal) => meal.id === focusedMealId)
-  : undefined;
-const expandedDays = ref(new Set(focusedMeal ? [dayKey(focusedMeal.createdAt)] : []));
-const loading = ref(false);
-const loadError = ref(initialError.value?.message);
+const expandedDays = ref(new Set<string>());
 const sentinel = useTemplateRef<HTMLElement>("sentinel");
 const settingsOpen = ref(false);
 const calorieGoal = ref(2_000);
@@ -45,6 +47,12 @@ function dayLabel(value: string): string {
     weekday: "long",
     year: date.getFullYear() === today.getFullYear() ? undefined : "numeric",
   }).format(date);
+}
+
+function dayId(day: { key: string; meals: Meal[] }): string {
+  return focusedMealId && day.meals.some((meal) => meal.id === focusedMealId)
+    ? `day-${focusedMealId}`
+    : `day-${day.key}`;
 }
 
 const days = computed(() => {
@@ -87,22 +95,6 @@ const days = computed(() => {
   }));
 });
 
-async function loadMore() {
-  if (loading.value || !nextCursor.value) return;
-  loading.value = true;
-  loadError.value = undefined;
-  try {
-    const page = await $fetch<MealsPage>("/api/meals", { query: { cursor: nextCursor.value } });
-    const knownIds = new Set(meals.value.map((meal) => meal.id));
-    meals.value.push(...page.meals.filter((meal) => !knownIds.has(meal.id)));
-    nextCursor.value = page.nextCursor;
-  } catch (error) {
-    loadError.value = error instanceof Error ? error.message : "Could not load older meals";
-  } finally {
-    loading.value = false;
-  }
-}
-
 function saveGoals() {
   calorieGoal.value = Math.max(1, Math.round(Number(calorieGoal.value) || 2_000));
   proteinGoal.value = Math.max(1, Math.round(Number(proteinGoal.value) || 150));
@@ -122,6 +114,16 @@ function toggleDay(key: string) {
   }
   expandedDays.value = next;
 }
+
+watch(meals, async (loadedMeals) => {
+  if (!focusedMealId) return;
+  const focusedMeal = loadedMeals.find((meal) => meal.id === focusedMealId);
+  if (!focusedMeal) return;
+
+  expandedDays.value = new Set([...expandedDays.value, dayKey(focusedMeal.createdAt)]);
+  await nextTick();
+  document.getElementById(`day-${focusedMealId}`)?.scrollIntoView({ block: "start" });
+}, { immediate: true });
 
 onMounted(() => {
   // ponytail: goals stay device-local until the dashboard has authentication.
@@ -187,6 +189,7 @@ onBeforeUnmount(() => observer?.disconnect());
     <div class="daily-log">
       <section
         v-for="day in days"
+        :id="dayId(day)"
         :key="day.key"
         class="day-section"
         :class="{ 'is-open': expandedDays.has(day.key) }"
@@ -267,7 +270,7 @@ onBeforeUnmount(() => observer?.disconnect());
         <UButton v-else-if="loadError" color="error" variant="soft" @click="loadMore">
           Try again
         </UButton>
-        <span v-else-if="!nextCursor">You’ve reached the first meal.</span>
+        <span v-else-if="!hasMore">You’ve reached the first meal.</span>
       </div>
     </div>
   </main>

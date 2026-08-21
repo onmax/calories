@@ -22,7 +22,10 @@ function openRouter() {
 function dashboardUrl(event: { runtime?: { request?: Request } }, mealId?: string) {
   if (!event.runtime?.request) return;
   const url = new URL("/", event.runtime.request.url);
-  if (mealId) url.searchParams.set("meal", mealId);
+  if (mealId) {
+    url.searchParams.set("meal", mealId);
+    url.hash = `day-${mealId}`;
+  }
   return url.toString();
 }
 

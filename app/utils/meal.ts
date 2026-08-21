@@ -1,24 +1,7 @@
-export interface Meal {
-  caption?: string;
-  confidence?: "low" | "medium" | "high" | "user-stated";
-  createdAt: string;
-  id: string;
-  items: Array<{
-    calories: number;
-    name: string;
-    portion: string;
-    protein?: number;
-  }>;
-  photoUrl?: string;
-  totalCalories?: number;
-  totalProtein?: number;
-  usageCost?: string;
-}
+import type { CollectionItem } from "vite-hub/source";
+import type { meals } from "../../server/collections/meals";
 
-export interface MealsPage {
-  meals: Meal[];
-  nextCursor?: string;
-}
+export type Meal = CollectionItem<typeof meals>;
 
 export function formatMealTime(value: string): string {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(
