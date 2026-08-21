@@ -3,11 +3,17 @@ import { generateText } from "ai";
 import { eq } from "drizzle-orm";
 import * as v from "valibot";
 import { defineAgent } from "vite-hub/agent";
-import { audioBytes, blob, cost, db, transcribe } from "vite-hub/agent/capabilities";
+import {
+  audioBytes,
+  blob,
+  cost,
+  db as databaseCapability,
+  transcribe,
+} from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
+import { useDatabase } from "vite-hub/database/drizzle";
 import { renderTemplate } from "#vitehub/templates";
 import { useServerEnv } from "#vitehub/env/server";
-import database, * as schema from "../../databases/config";
 
 function openRouter() {
   return createOpenRouter({ apiKey: useServerEnv().openrouter.apiKey });
@@ -23,7 +29,7 @@ function dashboardUrl(event: { runtime?: { request?: Request } }, mealId?: strin
 export default defineAgent({
   capabilities: [
     blob({ mode: "write" }),
-    db({ mode: "write" }),
+    databaseCapability({ mode: "write" }),
     transcribe({
       async execute({ audio }) {
         const { text } = await generateText({
@@ -71,7 +77,8 @@ export default defineAgent({
       const usageCost = event.invocation.usage?.cost?.display ?? "Cost unavailable";
       if (event.result?.mealId && usageCost !== "Cost unavailable") {
         try {
-          await database
+          const { db, schema } = useDatabase("default");
+          await db
             .update(schema.meals)
             .set({ usageCost })
             .where(eq(schema.meals.id, event.result.mealId));

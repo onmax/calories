@@ -1,9 +1,10 @@
 import { and, desc, eq, gte, lt, lte, or } from "drizzle-orm";
 import { defineEventHandler, getQuery } from "h3";
-import database, * as schema from "../databases/config";
+import { useDatabase } from "vite-hub/database/drizzle";
 import { copenhagenDayRange } from "../utils/copenhagen-day";
 
 export default defineEventHandler(async (event) => {
+  const { db, schema } = useDatabase("default");
   const query = getQuery(event);
   const focus = typeof query.focus === "string" && query.focus.length <= 128
     ? query.focus
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event) => {
         )
       : undefined;
   const focusedMeal = focus
-    ? await database
+    ? await db
         .select({ createdAt: schema.meals.createdAt })
         .from(schema.meals)
         .where(eq(schema.meals.id, focus))
@@ -28,7 +29,7 @@ export default defineEventHandler(async (event) => {
         .then((rows) => rows[0])
     : undefined;
   const focusedDay = focusedMeal ? copenhagenDayRange(focusedMeal.createdAt) : undefined;
-  const baseQuery = database
+  const baseQuery = db
     .select({
       caption: schema.meals.caption,
       confidence: schema.meals.confidence,
