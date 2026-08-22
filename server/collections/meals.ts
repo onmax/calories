@@ -1,18 +1,10 @@
-import { and, desc, eq, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import * as v from "valibot";
 import { useDatabase } from "vite-hub/database/drizzle";
 import { defineCollection } from "vite-hub/source";
 
-export const meals = defineCollection(async ({ cursor, limit, query }) => {
+export const meals = defineCollection(async ({ cursor, limit }) => {
   const { db, schema: { meals: table } } = useDatabase("default");
-  const focusedMeal = query.meal
-    ? await db
-        .select({ createdAt: table.createdAt })
-        .from(table)
-        .where(eq(table.id, query.meal))
-        .limit(1)
-        .then((rows) => rows[0])
-    : undefined;
   const olderThanCursor = cursor
     ? or(
         lt(table.createdAt, new Date(cursor[0])),
@@ -23,10 +15,7 @@ export const meals = defineCollection(async ({ cursor, limit, query }) => {
   return db
     .select()
     .from(table)
-    .where(and(
-      lte(table.createdAt, focusedMeal?.createdAt ?? new Date()),
-      olderThanCursor,
-    ))
+    .where(olderThanCursor)
     .orderBy(desc(table.createdAt), desc(table.id))
     .limit(limit);
 }, {
@@ -34,7 +23,7 @@ export const meals = defineCollection(async ({ cursor, limit, query }) => {
   cursorSchema: v.tuple([v.number(), v.string()]),
   defaultLimit: 24,
   maxLimit: 50,
-  querySchema: v.object({ meal: v.optional(v.pipe(v.string(), v.maxLength(128))) }),
+  querySchema: v.object({}),
   transform({ photoPath, ...meal }) {
     return {
       ...meal,

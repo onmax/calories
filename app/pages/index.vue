@@ -8,26 +8,21 @@ import {
 } from "~/utils/meal";
 import { useCollection } from "vite-hub/source/client";
 
-import type { meals as mealsCollection } from "../../server/collections/meals";
-
 const route = useRoute();
-const focusedMealId = typeof route.query.meal === "string" ? route.query.meal : undefined;
+const selectedMealId = typeof route.query.meal === "string" ? route.query.meal : undefined;
 const {
   error: loadError,
-  hasMore,
   items: meals,
-  loadMore,
   pending: loading,
-} = useCollection<typeof mealsCollection>("/api/meals", {
-  limit: focusedMealId ? 50 : 24,
-  query: focusedMealId ? { meal: focusedMealId } : {},
+  refresh,
+} = useCollection("meals", {
+  all: true,
+  limit: 50,
 });
 const expandedDays = ref(new Set<string>());
-const sentinel = useTemplateRef<HTMLElement>("sentinel");
 const settingsOpen = ref(false);
 const calorieGoal = ref(2_000);
 const proteinGoal = ref(150);
-let observer: IntersectionObserver | undefined;
 
 function dayKey(value: string): string {
   const date = new Date(value);
@@ -50,8 +45,8 @@ function dayLabel(value: string): string {
 }
 
 function dayId(day: { key: string; meals: Meal[] }): string {
-  return focusedMealId && day.meals.some((meal) => meal.id === focusedMealId)
-    ? `day-${focusedMealId}`
+  return selectedMealId && day.meals.some((meal) => meal.id === selectedMealId)
+    ? `day-${selectedMealId}`
     : `day-${day.key}`;
 }
 
@@ -116,13 +111,13 @@ function toggleDay(key: string) {
 }
 
 watch(meals, async (loadedMeals) => {
-  if (!focusedMealId) return;
-  const focusedMeal = loadedMeals.find((meal) => meal.id === focusedMealId);
-  if (!focusedMeal) return;
+  if (!selectedMealId) return;
+  const selectedMeal = loadedMeals.find((meal) => meal.id === selectedMealId);
+  if (!selectedMeal) return;
 
-  expandedDays.value = new Set([...expandedDays.value, dayKey(focusedMeal.createdAt)]);
+  expandedDays.value = new Set([...expandedDays.value, dayKey(selectedMeal.createdAt)]);
   await nextTick();
-  document.getElementById(`day-${focusedMealId}`)?.scrollIntoView({ block: "start" });
+  document.getElementById(`day-${selectedMealId}`)?.scrollIntoView({ block: "start" });
 }, { immediate: true });
 
 onMounted(() => {
@@ -132,17 +127,7 @@ onMounted(() => {
     if (Number.isFinite(goals?.calories) && goals.calories > 0) calorieGoal.value = goals.calories;
     if (Number.isFinite(goals?.protein) && goals.protein > 0) proteinGoal.value = goals.protein;
   } catch {}
-
-  observer = new IntersectionObserver(
-    ([entry]) => {
-      if (entry?.isIntersecting) void loadMore();
-    },
-    { rootMargin: "600px 0px" },
-  );
-  if (sentinel.value) observer.observe(sentinel.value);
 });
-
-onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <template>
@@ -265,12 +250,11 @@ onBeforeUnmount(() => observer?.disconnect());
         </div>
       </section>
 
-      <div v-if="!focusedMealId" ref="sentinel" class="feed-sentinel" aria-live="polite">
-        <span v-if="loading">Loading older meals…</span>
-        <UButton v-else-if="loadError" color="error" variant="soft" @click="loadMore">
+      <div v-if="loading || loadError" class="feed-sentinel" aria-live="polite">
+        <span v-if="loading">Loading meals…</span>
+        <UButton v-else color="error" variant="soft" @click="refresh">
           Try again
         </UButton>
-        <span v-else-if="!hasMore">You’ve reached the first meal.</span>
       </div>
     </div>
   </main>
