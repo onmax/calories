@@ -13,6 +13,7 @@ export default defineNuxtConfig({
   vitehub: {
     preset: "cloudflare",
     agent: true,
+    console: true,
     blob: {
       serve: { route: "/photos" },
     },

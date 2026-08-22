@@ -19,16 +19,6 @@ function openRouter() {
   return createOpenRouter({ apiKey: useServerEnv().openrouter.apiKey });
 }
 
-function dashboardUrl(event: { runtime?: { request?: Request } }, mealId?: string) {
-  if (!event.runtime?.request) return;
-  const url = new URL("/", event.runtime.request.url);
-  if (mealId) {
-    url.searchParams.set("meal", mealId);
-    url.hash = `day-${mealId}`;
-  }
-  return url.toString();
-}
-
 export default defineAgent({
   capabilities: [
     blob({ mode: "write" }),
@@ -78,6 +68,13 @@ export default defineAgent({
   hooks: {
     async "agent:finish"(event) {
       const usageCost = event.invocation.usage?.cost?.display ?? "Cost unavailable";
+      const dashboardUrl = event.runtime?.request
+        ? new URL("/", event.runtime.request.url)
+        : undefined;
+      if (dashboardUrl && event.result?.mealId) {
+        dashboardUrl.searchParams.set("meal", event.result.mealId);
+        dashboardUrl.hash = `day-${event.result.mealId}`;
+      }
       if (event.result?.mealId && usageCost !== "Cost unavailable") {
         try {
           const { db, schema } = useDatabase("default");
@@ -91,7 +88,7 @@ export default defineAgent({
       }
       return event.reply(await renderTemplate("reply", {
         cost: usageCost,
-        dashboardUrl: dashboardUrl(event, event.result?.mealId) ?? "",
+        dashboardUrl: dashboardUrl?.toString() ?? "",
         text: event.result?.text ?? "Done.",
       }));
     },

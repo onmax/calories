@@ -25,8 +25,10 @@
     "typecheck": "node --env-file-if-exists=.env node_modules/nuxt/bin/nuxt.mjs typecheck"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
     "@nuxt/ui": "4.10.0",
     "@openrouter/ai-sdk-provider": "3.0.0",
+    "@vite-hub/ui": "https://pkg.pr.new/vite-hub/vitehub/@vite-hub/ui@4cb0bb9",
     "ai": "7.0.34",
     "drizzle-orm": "0.45.2",
     "h3": "2.0.1-rc.25",
@@ -34,7 +36,7 @@
     "ofetch": "2.0.0-alpha.3",
     "tailwindcss": "4.3.3",
     "valibot": "1.4.2",
-    "vite-hub": "https://pkg.pr.new/vite-hub/vitehub/vite-hub@013939de",
+    "vite-hub": "https://pkg.pr.new/vite-hub/vitehub/vite-hub@fa595880",
     "vue-router": "5.2.0"
   },
   "devDependencies": {
