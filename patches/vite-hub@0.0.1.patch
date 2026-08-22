@@ -997,11 +997,11 @@ index c57167f5d6ab0045864b1e993244a6403d8a68ec..5dc796ba37a7ef386e50013ef794a3df
  const agentVueComposables = [
  	"useAgent",
  	"useAgentInvocation",
-@@ -50,6 +51,27 @@ function addVueImports(nuxt, from, names) {
+@@ -50,6 +51,28 @@ function addVueImports(nuxt, from, names) {
  		});
  	}
  }
-+async function installConsole(nuxt) {
++async function installConsole(nuxt, installServer) {
 +	const uiModule = (await import("@vite-hub/ui/nuxt")).default;
 +	await uiModule(void 0, nuxt);
 +	nuxt.hook?.("pages:extend", (pages) => {
@@ -1011,6 +1011,7 @@ index c57167f5d6ab0045864b1e993244a6403d8a68ec..5dc796ba37a7ef386e50013ef794a3df
 +		];
 +		for (const page of additions) if (!pages.some((candidate) => candidate.path === page.path)) pages.push(page);
 +	});
++	if (!installServer) return;
 +	const nitro = nuxt.options.nitro ??= {};
 +	const handlers = nitro.handlers ??= [];
 +	const additions = [
@@ -1029,7 +1030,7 @@ index c57167f5d6ab0045864b1e993244a6403d8a68ec..5dc796ba37a7ef386e50013ef794a3df
  		...moduleOptions,
  		env: envOptions
  	};
-+	if (options.console) await installConsole(nuxt);
++	if (options.console) await installConsole(nuxt, nuxt.options.dev || options.preset !== "cloudflare");
  	const rootDir = nuxt.options.rootDir || process.cwd();
  	const viteRoot = resolve(rootDir, typeof nuxt.options.vite?.root === "string" ? nuxt.options.vite.root : rootDir);
  	const projectRoot = resolveViteHubProjectRoot(viteRoot);
