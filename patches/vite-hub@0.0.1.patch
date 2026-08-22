@@ -29,8 +29,9 @@ new file mode 100644
 index 0000000000000000000000000000000000000000..67428f1f977e5091f6371f6c5d1a51fc5510a477
 --- /dev/null
 +++ b/dist/console/runtime/pages/agents.vue
-@@ -0,0 +1,660 @@
+@@ -0,0 +1,661 @@
 +<script setup lang="ts">
++import { useHead, useRoute, useRouter } from "#imports";
 +import { AgentInvocation } from "@vite-hub/ui";
 +import { useAgentInvocation, useAgentInvocations } from "vite-hub/agent/vue";
 +import { computed, ref, watch } from "vue";
