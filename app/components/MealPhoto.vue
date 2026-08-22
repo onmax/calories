@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { getMealPhotoUrl, getMealTitle, type Meal } from "~/utils/meal";
+import { getMealTitle, type Meal } from "~/utils/meal";
 
 const props = defineProps<{ meal: Meal }>();
 const failed = ref(false);
-const source = computed(() => (failed.value ? undefined : getMealPhotoUrl(props.meal)));
+const source = computed(() => (failed.value ? undefined : props.meal.photoUrl));
 const fallback = computed(() => getMealTitle(props.meal).trim().charAt(0).toUpperCase() || "M");
 
 watch(() => props.meal.photoUrl, () => {

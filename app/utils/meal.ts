@@ -20,12 +20,7 @@ export function getMealTitle(meal: Meal): string {
   );
 }
 
-export function getMealPhotoUrl(meal: Meal): string | undefined {
-  if (!meal.photoUrl) return undefined;
-  return meal.photoUrl;
-}
-
-export function parseUsageCostUsd(value?: string): number | undefined {
+export function parseUsageCostUsd(value?: string | null): number | undefined {
   const match = value?.replaceAll(",", "").match(/\$(\d+(?:\.\d+)?)/);
   if (!match) return undefined;
   const cost = Number(match[1]);

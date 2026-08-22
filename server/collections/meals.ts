@@ -1,78 +1,43 @@
 import { and, desc, eq, lt, lte, or } from "drizzle-orm";
+import * as v from "valibot";
 import { useDatabase } from "vite-hub/database/drizzle";
 import { defineCollection } from "vite-hub/source";
 
-import type { CollectionLoadOptions } from "vite-hub/source";
-
-type MealsCursor = readonly [createdAt: number, id: string];
-interface MealsQuery {
-  meal?: string;
-}
-
-export const meals = defineCollection(async ({ cursor, limit, query }: CollectionLoadOptions<
-  MealsQuery,
-  MealsCursor
->) => {
-  const { db, schema } = useDatabase("default");
+export const meals = defineCollection(async ({ cursor, limit, query }) => {
+  const { db, schema: { meals: table } } = useDatabase("default");
   const focusedMeal = query.meal
     ? await db
-        .select({ createdAt: schema.meals.createdAt })
-        .from(schema.meals)
-        .where(eq(schema.meals.id, query.meal))
+        .select({ createdAt: table.createdAt })
+        .from(table)
+        .where(eq(table.id, query.meal))
         .limit(1)
         .then((rows) => rows[0])
     : undefined;
   const olderThanCursor = cursor
     ? or(
-        lt(schema.meals.createdAt, new Date(cursor[0])),
-        and(eq(schema.meals.createdAt, new Date(cursor[0])), lt(schema.meals.id, cursor[1])),
+        lt(table.createdAt, new Date(cursor[0])),
+        and(eq(table.createdAt, new Date(cursor[0])), lt(table.id, cursor[1])),
       )
     : undefined;
 
   return db
-    .select({
-      caption: schema.meals.caption,
-      confidence: schema.meals.confidence,
-      createdAt: schema.meals.createdAt,
-      id: schema.meals.id,
-      items: schema.meals.items,
-      photoPath: schema.meals.photoPath,
-      totalCalories: schema.meals.totalCalories,
-      totalProtein: schema.meals.totalProtein,
-      usageCost: schema.meals.usageCost,
-    })
-    .from(schema.meals)
-    .where(
-      focusedMeal
-        ? and(lte(schema.meals.createdAt, focusedMeal.createdAt), olderThanCursor)
-        : olderThanCursor
-          ? and(lte(schema.meals.createdAt, new Date()), olderThanCursor)
-          : lte(schema.meals.createdAt, new Date()),
-    )
-    .orderBy(desc(schema.meals.createdAt), desc(schema.meals.id))
+    .select()
+    .from(table)
+    .where(and(
+      lte(table.createdAt, focusedMeal?.createdAt ?? new Date()),
+      olderThanCursor,
+    ))
+    .orderBy(desc(table.createdAt), desc(table.id))
     .limit(limit);
 }, {
-  cursor: (meal) => [meal.createdAt.getTime(), meal.id] as const,
+  cursor: meal => [meal.createdAt.getTime(), meal.id] as const,
+  cursorSchema: v.tuple([v.number(), v.string()]),
   defaultLimit: 24,
   maxLimit: 50,
-  parseCursor(input) {
-    if (!Array.isArray(input) || input.length !== 2
-      || typeof input[0] !== "number" || !Number.isFinite(input[0])
-      || typeof input[1] !== "string") {
-      throw new TypeError("Meal cursor must contain a timestamp and id.");
-    }
-    return [input[0], input[1]] as const;
-  },
-  query(input): MealsQuery {
-    return typeof input.meal === "string" && input.meal.length <= 128
-      ? { meal: input.meal }
-      : {};
-  },
+  querySchema: v.object({ meal: v.optional(v.pipe(v.string(), v.maxLength(128))) }),
   transform({ photoPath, ...meal }) {
     return {
       ...meal,
-      caption: meal.caption || undefined,
-      confidence: meal.confidence || undefined,
       createdAt: meal.createdAt.toISOString(),
       items: meal.items.map((item) => ({
         calories: item.calories ?? item.kcal ?? 0,
@@ -84,9 +49,6 @@ export const meals = defineCollection(async ({ cursor, limit, query }: Collectio
       photoUrl: photoPath
         ? `/photos/${photoPath.split("/").map(encodeURIComponent).join("/")}`
         : undefined,
-      totalCalories: meal.totalCalories ?? undefined,
-      totalProtein: meal.totalProtein ?? undefined,
-      usageCost: meal.usageCost ?? undefined,
     };
   },
 });
