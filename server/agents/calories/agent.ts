@@ -12,8 +12,9 @@ import {
 } from "vite-hub/agent/capabilities";
 import { telegram } from "vite-hub/agent/channels";
 import { useDatabase } from "vite-hub/database/drizzle";
-import { renderTemplate } from "#vitehub/templates";
 import { useServerEnv } from "#vitehub/env/server";
+
+import renderReply from "./reply.template.md";
 
 function openRouter() {
   return createOpenRouter({ apiKey: useServerEnv().openrouter.apiKey });
@@ -86,7 +87,7 @@ export default defineAgent({
           console.error("[calories] Failed to record usage cost", error);
         }
       }
-      return event.reply(await renderTemplate("reply", {
+      return event.reply(await renderReply({
         cost: usageCost,
         dashboardUrl: dashboardUrl?.toString() ?? "",
         text: event.result?.text ?? "Done.",

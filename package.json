@@ -6,10 +6,6 @@
     "#vitehub/env/server": {
       "types": "./.vitehub/env/server.d.ts",
       "default": "./.vitehub/env/server.mjs"
-    },
-    "#vitehub/templates": {
-      "types": "./.vitehub/types/templates.d.ts",
-      "default": "./.vitehub/markdown-template/templates.mjs"
     }
   },
   "scripts": {
