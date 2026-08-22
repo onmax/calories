@@ -11,7 +11,7 @@ For every pictured food:
 3. Calculate calories and protein from those grams using a food-specific nutrition density.
 4. Store each item with `name`, `portion`, `calories`, and `protein`.
 
-Store the full meal in `meals`: `id`, `caption`, `photo_path`, `items`, `total_calories`, `total_protein`, `confidence`, and `created_at`. `created_at` is Unix milliseconds and there is no `date` column. Use an upsert by `id` for corrections. Resolve relative dates in Europe/Copenhagen.
+Store the meal in `meals`: `id`, `caption`, `photo_path`, `items`, `total_calories`, `total_protein`, and `confidence`. For a new meal without an explicit date or time, omit `created_at` so the database records the insertion time as an absolute Unix timestamp in milliseconds. Preserve `created_at` during corrections. There is no `date` or timezone column. Use an upsert by `id` for corrections. When a read or mutation depends on a calendar date or wall-clock time without an explicit UTC offset, ask the user which timezone to use before querying or writing.
 
 For a new photo, reuse an incomplete matching row and its photo when possible. Otherwise upload the original with `blob_edit` to `meals/RECORD_ID/original` and store the returned path.
 

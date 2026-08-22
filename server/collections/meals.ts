@@ -1,9 +1,8 @@
-import { and, desc, eq, gte, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, lt, lte, or } from "drizzle-orm";
 import { useDatabase } from "vite-hub/database/drizzle";
 import { defineCollection } from "vite-hub/source";
 
 import type { CollectionLoadOptions } from "vite-hub/source";
-import { copenhagenDayRange } from "../utils/copenhagen-day";
 
 type MealsCursor = readonly [createdAt: number, id: string];
 interface MealsQuery {
@@ -23,7 +22,6 @@ export const meals = defineCollection(async ({ cursor, limit, query }: Collectio
         .limit(1)
         .then((rows) => rows[0])
     : undefined;
-  const focusedDay = focusedMeal ? copenhagenDayRange(focusedMeal.createdAt) : undefined;
   const olderThanCursor = cursor
     ? or(
         lt(schema.meals.createdAt, new Date(cursor[0])),
@@ -45,12 +43,8 @@ export const meals = defineCollection(async ({ cursor, limit, query }: Collectio
     })
     .from(schema.meals)
     .where(
-      focusedDay
-        ? and(
-            gte(schema.meals.createdAt, focusedDay[0]),
-            lt(schema.meals.createdAt, focusedDay[1]),
-            olderThanCursor,
-          )
+      focusedMeal
+        ? and(lte(schema.meals.createdAt, focusedMeal.createdAt), olderThanCursor)
         : olderThanCursor
           ? and(lte(schema.meals.createdAt, new Date()), olderThanCursor)
           : lte(schema.meals.createdAt, new Date()),

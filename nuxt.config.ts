@@ -33,12 +33,6 @@ export default defineNuxtConfig({
   vite: {
     env: {
       server: {
-        calories: {
-          timeZone: env({
-            optional: true,
-            source: env.source("CALORIES_TIME_ZONE"),
-          }),
-        },
         openrouter: {
           apiKey: env({
             source: env.source("OPENROUTER_API_KEY"),
